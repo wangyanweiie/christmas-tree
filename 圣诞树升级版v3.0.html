@@ -1,0 +1,4357 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>Christmas Tree</title>
+    <style>
+        /* CSS变量 - 主题色 */
+        :root {
+            --accent-color: #00ffcc;
+            --accent-color-rgb: 0, 255, 204;
+        }
+
+        /* 基础样式 */
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: radial-gradient(circle at center, #0b1a2a 0%, #000000 100%);
+            font-family: 'Times New Roman', serif;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        /* 加载动画 */
+        #loader {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.8s ease-out;
+        }
+
+        .loader-text {
+            color: #aaddff;
+            font-size: 14px;
+            letter-spacing: 4px;
+            margin-top: 20px;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-top: 1px solid var(--accent-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* 标题 */
+        h1 {
+            position: absolute;
+            top: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            text-align: center;
+            margin: 0;
+            pointer-events: none;
+            font-size: 36px;
+            font-weight: 400;
+            background: linear-gradient(135deg, #e0f7fa 0%, #ffffff 50%, #88ccff 100%);
+            background-size: 200% auto;
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: aurora-shine 6s linear infinite;
+            opacity: 0.9;
+        }
+
+        @keyframes aurora-shine {
+            0% {
+                background-position: 0% center;
+            }
+
+            100% {
+                background-position: 300% center;
+            }
+        }
+
+        /* 上传按钮 */
+        .upload-wrapper {
+            position: absolute;
+            top: 40px;
+            right: 40px;
+            z-index: 20;
+            pointer-events: auto;
+            display: flex;
+            gap: 10px;
+        }
+
+        .upload-btn,
+        .control-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50px;
+            padding: 8px 20px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 10px;
+            text-transform: uppercase;
+            backdrop-filter: blur(5px);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .upload-btn:hover,
+        .control-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--accent-color);
+            color: #fff;
+            box-shadow: 0 0 10px rgba(var(--accent-color-rgb), 0.2);
+        }
+
+        .control-btn.active {
+            background: rgba(var(--accent-color-rgb), 0.1);
+            border-color: var(--accent-color);
+            color: var(--accent-color);
+        }
+
+        #file-input,
+        #import-input {
+            display: none;
+        }
+
+        /* 摄像头预览窗口 */
+        #webcam-wrapper {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            width: 160px;
+            height: 120px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            opacity: 0.8;
+            z-index: 20;
+            background: #000;
+        }
+
+        #webcam-wrapper canvas {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
+
+        /* 操作提示 */
+        #tips {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            padding: 15px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 10px;
+            backdrop-filter: blur(10px);
+            z-index: 15;
+        }
+
+        .tip-item {
+            margin: 6px 0;
+        }
+
+        .tip-key {
+            color: var(--accent-color);
+            display: inline-block;
+            min-width: 60px;
+        }
+
+        /* 缓存管理模态框 */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: rgba(10, 20, 30, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            gap: 15px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 8px;
+            margin-left: auto;
+            margin-right: 15px;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            color: #fff;
+            font-size: 18px;
+            font-weight: 400;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            line-height: 1;
+        }
+
+        .modal-close:hover {
+            color: #fff;
+        }
+
+        .modal-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .photo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
+        }
+
+        .photo-item {
+            position: relative;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .photo-item:hover {
+            border-color: var(--accent-color);
+            transform: translateY(-2px);
+        }
+
+        .photo-item.in-scene {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 10px rgba(var(--accent-color-rgb), 0.3);
+        }
+
+        .photo-thumb {
+            width: 100%;
+            aspect-ratio: 1;
+            object-fit: cover;
+            display: block;
+        }
+
+        .photo-info {
+            padding: 8px;
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .photo-size {
+            margin-bottom: 4px;
+        }
+
+        .photo-status {
+            color: var(--accent-color);
+            font-size: 9px;
+        }
+
+        .photo-actions {
+            display: flex;
+            gap: 5px;
+            margin-top: 8px;
+        }
+
+        .photo-action-btn {
+            flex: 1;
+            padding: 6px 4px;
+            font-size: 9px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.05);
+            color: rgba(255, 255, 255, 0.7);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .photo-action-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+
+        .photo-action-btn.add-scene {
+            border-color: var(--accent-color);
+            color: var(--accent-color);
+        }
+
+        .photo-action-btn.add-scene:hover {
+            background: rgba(0, 255, 204, 0.1);
+        }
+
+        .photo-action-btn.remove-scene {
+            border-color: #ffaa00;
+            color: #ffaa00;
+        }
+
+        .photo-action-btn.delete {
+            border-color: #ff4444;
+            color: #ff4444;
+        }
+
+        .photo-action-btn.delete:hover {
+            background: rgba(255, 68, 68, 0.1);
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-action-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 8px 14px;
+            font-size: 11px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.05);
+            color: rgba(255, 255, 255, 0.8);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .modal-action-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.4);
+            color: #fff;
+        }
+
+        .modal-action-btn.upload {
+            border-color: var(--accent-color);
+            color: var(--accent-color);
+        }
+
+        .modal-action-btn.upload:hover {
+            background: rgba(0, 255, 204, 0.1);
+        }
+
+        .modal-action-btn.import {
+            border-color: #88aaff;
+            color: #88aaff;
+        }
+
+        .modal-action-btn.import:hover {
+            background: rgba(136, 170, 255, 0.1);
+        }
+
+        .modal-action-btn.export {
+            border-color: #ffaa00;
+            color: #ffaa00;
+        }
+
+        .modal-action-btn.export:hover {
+            background: rgba(255, 170, 0, 0.1);
+        }
+
+        .cache-stats {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 12px;
+        }
+
+        .cache-stats .highlight {
+            color: var(--accent-color);
+        }
+
+        .cache-stats .warning {
+            color: #ffaa00;
+        }
+
+        .clear-all-btn {
+            padding: 8px 16px;
+            font-size: 11px;
+            background: rgba(255, 68, 68, 0.1);
+            border: 1px solid #ff4444;
+            color: #ff4444;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .clear-all-btn:hover {
+            background: rgba(255, 68, 68, 0.2);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+
+        /* 导出命名对话框样式 */
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            color: #fff;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+
+        .form-group input[readonly] {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .filename-preview {
+            padding: 10px;
+            background: rgba(var(--accent-color-rgb), 0.1);
+            border-radius: 6px;
+            color: var(--accent-color);
+            font-size: 12px;
+            word-break: break-all;
+        }
+
+        /* 音乐管理样式 */
+        .music-source-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .music-tab {
+            flex: 1;
+            padding: 12px 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .music-tab:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.4);
+        }
+
+        .music-tab.active {
+            background: rgba(var(--accent-color-rgb), 0.1);
+            border-color: var(--accent-color);
+            color: var(--accent-color);
+        }
+
+        .music-tab-content {
+            padding: 15px 0;
+        }
+
+        .upload-area {
+            border: 2px dashed rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .upload-area:hover {
+            border-color: var(--accent-color);
+            background: rgba(var(--accent-color-rgb), 0.05);
+        }
+
+        .upload-area.dragover {
+            border-color: var(--accent-color);
+            background: rgba(var(--accent-color-rgb), 0.1);
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+
+        .upload-text {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .upload-hint {
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 11px;
+        }
+
+        .current-music-info {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .music-info-label {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 11px;
+            margin-bottom: 5px;
+        }
+
+        .music-info-value {
+            color: var(--accent-color);
+            font-size: 13px;
+            word-break: break-all;
+        }
+
+        .music-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+        }
+
+        .music-control-btn {
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .music-control-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--accent-color);
+            color: var(--accent-color);
+        }
+
+        .music-control-btn.playing {
+            background: rgba(var(--accent-color-rgb), 0.1);
+            border-color: var(--accent-color);
+            color: var(--accent-color);
+        }
+
+        .volume-control {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+            justify-content: flex-end;
+        }
+
+        .volume-label {
+            font-size: 16px;
+        }
+
+        .volume-value {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 11px;
+            min-width: 35px;
+        }
+
+        #music-volume {
+            width: 100px;
+            height: 4px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+            outline: none;
+        }
+
+        #music-volume::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 14px;
+            height: 14px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        #music-volume::-moz-range-thumb {
+            width: 14px;
+            height: 14px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+
+        /* ========== 音乐播放动效样式 ========== */
+        .music-widget {
+            position: fixed;
+            left: 20px;
+            top: 30px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 25px;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+
+        .music-widget-main {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+        }
+
+        .music-visualizer {
+            display: flex;
+            align-items: flex-end;
+            gap: 2px;
+            height: 20px;
+        }
+
+        .music-visualizer .bar {
+            width: 3px;
+            background: linear-gradient(to top, var(--accent-color), var(--accent-color-light, #88ccff));
+            border-radius: 2px;
+            animation: musicBar 0.5s ease-in-out infinite alternate;
+        }
+
+        .music-visualizer .bar:nth-child(1) {
+            height: 6px;
+            animation-delay: 0s;
+        }
+
+        .music-visualizer .bar:nth-child(2) {
+            height: 12px;
+            animation-delay: 0.1s;
+        }
+
+        .music-visualizer .bar:nth-child(3) {
+            height: 18px;
+            animation-delay: 0.2s;
+        }
+
+        .music-visualizer .bar:nth-child(4) {
+            height: 10px;
+            animation-delay: 0.3s;
+        }
+
+        .music-visualizer .bar:nth-child(5) {
+            height: 14px;
+            animation-delay: 0.4s;
+        }
+
+        .music-visualizer.paused .bar {
+            animation: none;
+            height: 4px !important;
+            opacity: 0.5;
+        }
+
+        .music-name {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 12px;
+            max-width: 150px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .music-widget-controls {
+            display: flex;
+            gap: 4px;
+            opacity: 0;
+            max-width: 0;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .music-widget:hover .music-widget-controls {
+            opacity: 1;
+            max-width: 120px;
+            margin-left: 8px;
+        }
+
+        .widget-btn {
+            width: 28px;
+            height: 28px;
+            border: none;
+            background: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .widget-btn:hover {
+            background: rgba(0, 255, 204, 0.3);
+            color: #fff;
+            transform: scale(1.1);
+        }
+
+        @keyframes musicBar {
+            0% {
+                transform: scaleY(0.3);
+            }
+
+            100% {
+                transform: scaleY(1);
+            }
+        }
+
+        /* ========== 开关样式 ========== */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.2);
+            transition: 0.3s;
+            border-radius: 24px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+
+        .toggle-switch input:checked+.toggle-slider {
+            background-color: var(--accent-color);
+        }
+
+        .toggle-switch input:checked+.toggle-slider:before {
+            transform: translateX(20px);
+        }
+
+        /* ========== 配置面板样式 ========== */
+        .settings-modal-content {
+            max-width: 700px !important;
+            width: 95%;
+        }
+
+        .settings-modal-content .modal-body {
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .settings-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+
+        .settings-section {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 12px;
+        }
+
+        .settings-section-wide {
+            grid-column: span 3;
+        }
+
+        /* 颜色设置样式 */
+        .color-settings-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px 20px;
+        }
+
+        .color-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 8px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .color-item label {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 11px;
+            text-align: center;
+        }
+
+        .color-item input[type="color"] {
+            width: 40px;
+            height: 40px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            background: transparent;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        .color-item input[type="color"]::-webkit-color-swatch-wrapper {
+            padding: 3px;
+        }
+
+        .color-item input[type="color"]::-webkit-color-swatch {
+            border-radius: 5px;
+            border: none;
+        }
+
+        .color-item input[type="color"]:hover {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 8px rgba(var(--accent-color-rgb), 0.3);
+        }
+
+        /* 主题按钮样式 */
+        .theme-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .theme-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 90px;
+        }
+
+        .theme-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .theme-btn.active {
+            border-color: var(--accent-color);
+            background: rgba(var(--accent-color-rgb), 0.1);
+            box-shadow: 0 0 15px rgba(var(--accent-color-rgb), 0.3);
+        }
+
+        .theme-btn[data-theme="frozen"].active {
+            border-color: #88ccff;
+            background: rgba(136, 204, 255, 0.15);
+            box-shadow: 0 0 15px rgba(136, 204, 255, 0.4);
+        }
+
+        .theme-btn[data-theme="golden"].active {
+            border-color: #ffd700;
+            background: rgba(255, 215, 0, 0.15);
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.4);
+        }
+
+        .theme-btn[data-theme="classic"].active {
+            border-color: #ff4444;
+            background: rgba(255, 68, 68, 0.15);
+            box-shadow: 0 0 15px rgba(255, 68, 68, 0.4);
+        }
+
+        .theme-icon {
+            font-size: 24px;
+        }
+
+        .theme-name {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .theme-btn.active .theme-name {
+            color: #fff;
+        }
+
+        .section-title {
+            color: var(--accent-color);
+            font-size: 13px;
+            font-weight: bold;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .setting-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .setting-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .setting-item label {
+            flex: 1;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 11px;
+            min-width: 80px;
+        }
+
+        .setting-item input[type="range"] {
+            flex: 2;
+            height: 4px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+            outline: none;
+        }
+
+        .setting-item input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 14px;
+            height: 14px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .setting-item input[type="range"]::-moz-range-thumb {
+            width: 14px;
+            height: 14px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+
+        .setting-value {
+            min-width: 35px;
+            text-align: right;
+            color: var(--accent-color);
+            font-size: 11px;
+            font-family: monospace;
+        }
+
+        /* ========== 移动端适配 ========== */
+        @media screen and (max-width: 768px) {
+
+            /* 标题适配 */
+            h1 {
+                top: 15px;
+                font-size: 22px;
+                padding: 0 10px;
+            }
+
+            /* 按钮区域 - 右上角竖向排列小图标 */
+            .upload-wrapper {
+                top: 10px;
+                right: 10px;
+                left: auto;
+                transform: none;
+                gap: 8px;
+                flex-direction: column;
+                flex-wrap: nowrap;
+                justify-content: flex-start;
+                align-items: flex-end;
+            }
+
+            .upload-btn,
+            .control-btn {
+                padding: 8px;
+                font-size: 14px;
+                gap: 0;
+                border-radius: 50%;
+                width: 36px;
+                height: 36px;
+                min-width: 36px;
+            }
+
+            /* 移动端隐藏按钮文字，只显示图标 */
+            .control-btn .btn-text {
+                display: none;
+            }
+
+            .control-btn .btn-icon {
+                font-size: 16px;
+                color: rgba(255, 255, 255, 0.8);
+            }
+
+            .mobile-ctrl-btn i {
+                font-size: 18px;
+            }
+
+            /* 操作提示 - 移动端隐藏，因为有底部触摸按钮 */
+            #tips {
+                display: none;
+            }
+
+            /* 摄像头预览 - 移动端缩小并移到左上角 */
+            #webcam-wrapper {
+                width: 100px;
+                height: 75px;
+                top: 60px;
+                left: 10px;
+                bottom: auto;
+                right: auto;
+            }
+
+            /* 模态框适配 */
+            .modal-content {
+                width: 95%;
+                max-height: 90vh;
+                border-radius: 8px;
+            }
+
+            .modal-header {
+                padding: 15px;
+                flex-wrap: wrap;
+            }
+
+            .modal-header h2 {
+                font-size: 16px;
+                width: 100%;
+                margin-bottom: 10px;
+            }
+
+            .header-actions {
+                margin-left: 0;
+                margin-right: 0;
+                width: 100%;
+                justify-content: flex-start;
+                flex-wrap: wrap;
+                gap: 6px;
+            }
+
+            .modal-action-btn {
+                padding: 8px 10px;
+                font-size: 10px;
+            }
+
+            .modal-body {
+                padding: 15px;
+            }
+
+            .photo-grid {
+                grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+                gap: 10px;
+            }
+
+            .photo-info {
+                padding: 6px;
+                font-size: 9px;
+            }
+
+            .photo-action-btn {
+                padding: 5px 3px;
+                font-size: 8px;
+            }
+
+            /* 配置面板移动端适配 */
+            .settings-modal-content {
+                max-width: 95% !important;
+            }
+
+            .settings-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+            }
+
+            .settings-section {
+                padding: 8px;
+            }
+
+            .settings-section-wide {
+                grid-column: span 2;
+            }
+
+            /* 主题按钮移动端适配 */
+            .theme-buttons {
+                gap: 6px;
+            }
+
+            .theme-btn {
+                padding: 8px 10px;
+                min-width: 70px;
+            }
+
+            .theme-icon {
+                font-size: 20px;
+            }
+
+            .theme-name {
+                font-size: 10px;
+            }
+
+            .section-title {
+                font-size: 11px;
+                margin-bottom: 8px;
+            }
+
+            .setting-item {
+                flex-wrap: wrap;
+                gap: 5px;
+            }
+
+            .setting-item label {
+                width: 100%;
+                font-size: 10px;
+                margin-bottom: 2px;
+            }
+
+            .setting-item input[type="range"] {
+                flex: 1;
+            }
+
+            .setting-value {
+                min-width: 30px;
+            }
+
+            .color-settings-row {
+                gap: 10px;
+            }
+
+            .color-item {
+                flex: 1;
+                min-width: 70px;
+            }
+
+            .color-item label {
+                font-size: 10px;
+                min-width: 35px;
+                font-size: 10px;
+            }
+
+            .modal-footer {
+                padding: 12px 15px;
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .cache-stats {
+                font-size: 11px;
+                text-align: center;
+            }
+
+            /* 音乐控制适配 */
+            .music-controls {
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+
+            .music-control-btn {
+                padding: 8px 15px;
+                font-size: 11px;
+            }
+
+            .volume-control {
+                width: 100%;
+                justify-content: center;
+                margin-top: 5px;
+            }
+
+            #music-volume {
+                width: 150px;
+            }
+
+            .music-source-tabs {
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .upload-area {
+                padding: 30px 15px;
+            }
+
+            .upload-icon {
+                font-size: 36px;
+            }
+
+            .upload-text {
+                font-size: 13px;
+            }
+
+            /* 表单适配 */
+            .form-group input {
+                padding: 12px;
+                font-size: 16px;
+                /* 防止iOS缩放 */
+            }
+
+            /* 音乐动效移动端适配 */
+            .music-widget {
+                left: 10px;
+                top: 10px;
+                padding: 6px 10px;
+            }
+
+            .music-name {
+                max-width: 0;
+                opacity: 0;
+                font-size: 11px;
+                overflow: hidden;
+                transition: all 0.3s ease;
+            }
+
+            .music-widget.expanded .music-name {
+                max-width: 100px;
+                opacity: 1;
+            }
+
+            .music-widget-controls {
+                display: flex;
+                opacity: 0;
+                max-width: 0;
+                overflow: hidden;
+                transition: all 0.3s ease;
+            }
+
+            .music-widget.expanded .music-widget-controls {
+                opacity: 1;
+                max-width: 100px;
+                margin-left: 5px;
+            }
+
+            .widget-btn {
+                width: 24px;
+                height: 24px;
+                font-size: 10px;
+            }
+        }
+
+        /* 更小屏幕适配 */
+        @media screen and (max-width: 480px) {
+            h1 {
+                top: 15px;
+                font-size: 20px;
+            }
+
+            .upload-wrapper {
+                top: 10px;
+                right: 10px;
+            }
+
+            .upload-btn,
+            .control-btn {
+                padding: 6px 10px;
+                font-size: 10px;
+            }
+
+            #tips {
+                font-size: 10px;
+                padding: 10px;
+            }
+
+            .photo-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        /* 移动端触摸控制按钮 */
+        #mobile-controls {
+            display: none;
+            position: fixed;
+            bottom: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 25;
+            gap: 12px;
+            pointer-events: auto;
+        }
+
+        @media screen and (max-width: 768px) {
+            #mobile-controls {
+                display: flex;
+            }
+
+            /* 移动端隐藏键盘提示 */
+            #tips .keyboard-tips {
+                display: none;
+            }
+        }
+
+        .mobile-ctrl-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.5);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: #fff;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(10px);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .mobile-ctrl-btn:active {
+            transform: scale(0.95);
+            background: rgba(var(--accent-color-rgb), 0.3);
+            border-color: var(--accent-color);
+        }
+
+        .mobile-ctrl-btn.active {
+            background: rgba(var(--accent-color-rgb), 0.2);
+            border-color: var(--accent-color);
+            color: var(--accent-color);
+        }
+
+        /* 安全区域适配 (iPhone X+) */
+        @supports (padding: max(0px)) {
+            #tips {
+                padding-bottom: max(12px, env(safe-area-inset-bottom));
+            }
+
+            #mobile-controls {
+                bottom: max(50px, calc(50px + env(safe-area-inset-bottom)));
+            }
+        }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://testingcf.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://testingcf.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+                "@mediapipe/tasks-vision": "https://testingcf.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/+esm"
+            }
+        }
+    </script>
+    <!-- Font Awesome 图标库 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+
+<body></body>
+<div id="loader">
+    <div class="spinner"></div>
+    <div class="loader-text">Loading...</div>
+</div>
+
+<div id="canvas-container"></div>
+
+<div id="ui-layer">
+    <h1>Merry Christmas</h1>
+    <div class="upload-wrapper">
+        <button class="control-btn" id="manage-btn" title="管理缓存照片"><i class="btn-icon fa-solid fa-folder-open"></i><span
+                class="btn-text">管理</span></button>
+        <button class="control-btn" id="music-btn" title="播放/暂停音乐"><i class="btn-icon fa-solid fa-music"></i><span
+                class="btn-text">音乐</span></button>
+        <button class="control-btn" id="settings-btn" title="参数设置"><i class="btn-icon fa-solid fa-gear"></i><span
+                class="btn-text">设置</span></button>
+    </div>
+    <!-- 移动端触摸控制按钮 -->
+    <div id="mobile-controls">
+        <button class="mobile-ctrl-btn" id="mobile-tree" title="圣诞树模式"><i class="fa-solid fa-tree"></i></button>
+        <button class="mobile-ctrl-btn" id="mobile-scatter" title="星河散开"><i class="fa-solid fa-star"></i></button>
+        <button class="mobile-ctrl-btn" id="mobile-photo" title="锁定照片"><i class="fa-solid fa-image"></i></button>
+        <button class="mobile-ctrl-btn" id="mobile-next" title="下一张"><i class="fa-solid fa-forward"></i></button>
+    </div>
+</div>
+
+<!-- 背景音乐 -->
+<audio id="bg-music"></audio>
+
+<!-- 音乐播放动效 -->
+<div id="music-widget" class="music-widget">
+    <div class="music-widget-main">
+        <div id="music-visualizer" class="music-visualizer paused">
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+        </div>
+        <div class="music-name" id="music-widget-name">Christmas Background</div>
+    </div>
+    <div class="music-widget-controls">
+        <button class="widget-btn" id="widget-play-btn" title="播放/暂停">⏸</button>
+        <button class="widget-btn" id="widget-next-btn" title="下一首">⏭</button>
+        <button class="widget-btn" id="widget-settings-btn" title="音乐设置">⚙</button>
+    </div>
+</div>
+
+<div id="webcam-wrapper">
+    <video id="webcam" autoplay playsinline style="display:none;"></video>
+    <canvas id="webcam-preview"></canvas>
+</div>
+
+<!-- 缓存管理模态框 -->
+<div id="cache-modal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>照片缓存管理</h2>
+            <div class="header-actions">
+                <label class="modal-action-btn upload">
+                    📷 上传照片
+                    <input type="file" id="file-input" multiple accept="image/*" style="display:none;">
+                </label>
+                <label class="modal-action-btn import">
+                    📥 导入
+                    <input type="file" id="import-input" accept=".json" style="display:none;">
+                </label>
+                <button class="modal-action-btn export" id="export-btn">📤 导出</button>
+            </div>
+            <button class="modal-close" id="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div id="photo-grid" class="photo-grid"></div>
+        </div>
+        <div class="modal-footer">
+            <div class="cache-stats" id="cache-stats">
+                已缓存 <span class="highlight">0</span> 张照片 (<span class="highlight">0 KB</span> / 50 MB)
+            </div>
+            <button class="clear-all-btn" id="clear-all-btn">清空全部</button>
+        </div>
+    </div>
+</div>
+
+<!-- 导出命名对话框 -->
+<div id="export-name-modal" class="modal-overlay">
+    <div class="modal-content" style="max-width: 400px;">
+        <div class="modal-header">
+            <h2>导出照片</h2>
+            <button class="modal-close" id="export-name-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>主题名</label>
+                <input type="text" id="export-theme" value="Merry Christmas">
+            </div>
+            <div class="form-group">
+                <label>自定义名称</label>
+                <input type="text" id="export-custom" placeholder="例：女朋友靓照合集">
+            </div>
+            <div class="form-group">
+                <label>日期</label>
+                <input type="text" id="export-date" readonly>
+            </div>
+            <div class="filename-preview">
+                预览: <span id="filename-preview"></span>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="modal-action-btn" id="export-cancel">取消</button>
+            <button class="modal-action-btn export" id="export-confirm">确认导出</button>
+        </div>
+    </div>
+</div>
+
+<!-- 音乐管理对话框 -->
+<div id="music-modal" class="modal-overlay">
+    <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-header">
+            <h2>🎵 音乐管理</h2>
+            <button class="modal-close" id="music-modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="music-source-tabs">
+                <button class="music-tab active" data-tab="url">🔗 音乐链接</button>
+                <button class="music-tab" data-tab="upload">📁 上传文件</button>
+            </div>
+
+            <div class="music-tab-content" id="tab-url">
+                <div class="form-group">
+                    <label>输入音乐链接 (支持 MP3, WAV, OGG 等格式)</label>
+                    <input type="text" id="music-url-input" placeholder="https://example.com/music.mp3">
+                </div>
+                <button class="modal-action-btn upload" id="apply-url-btn" style="width: 100%;">应用链接</button>
+            </div>
+
+            <div class="music-tab-content" id="tab-upload" style="display: none;">
+                <div class="form-group">
+                    <label>选择本地音频文件</label>
+                    <div class="upload-area" id="music-upload-area">
+                        <div class="upload-icon">🎵</div>
+                        <div class="upload-text">点击或拖拽音频文件到这里</div>
+                        <div class="upload-hint">支持 MP3, WAV, OGG, M4A 格式</div>
+                        <input type="file" id="music-file-input" accept="audio/*" style="display: none;">
+                    </div>
+                </div>
+            </div>
+
+            <div class="current-music-info" id="current-music-info">
+                <div class="music-info-label">当前音乐:</div>
+                <div class="music-info-value" id="current-music-name">默认音乐</div>
+            </div>
+
+            <div class="music-controls">
+                <button class="music-control-btn" id="music-play-btn">▶ 播放</button>
+                <button class="music-control-btn" id="music-pause-btn">⏸ 暂停</button>
+                <button class="music-control-btn" id="music-next-btn">⏭ 下一首</button>
+                <div class="volume-control"></div>
+                <span class="volume-label">🔊</span>
+                <input type="range" id="music-volume" min="0" max="100" value="50">
+                <span class="volume-value" id="volume-value">50%</span>
+            </div>
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button class="modal-action-btn" id="music-reset-btn">🔄 恢复默认</button>
+        <button class="modal-action-btn export" id="music-close-btn">完成</button>
+    </div>
+</div>
+</div>
+
+<!-- 配置面板模态框 -->
+<div id="settings-modal" class="modal-overlay">
+    <div class="modal-content settings-modal-content">
+        <div class="modal-header">
+            <h2>⚙️ 参数设置</h2>
+            <button class="modal-close" id="settings-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="settings-grid">
+                <!-- 相机设置 -->
+                <div class="settings-section">
+                    <div class="section-title">📷 相机</div>
+                    <div class="setting-item">
+                        <label>树模式距离</label>
+                        <input type="range" id="cfg-tree-distance" min="20" max="80" value="45">
+                        <span class="setting-value" id="cfg-tree-distance-val">45</span>
+                    </div>
+                    <div class="setting-item">
+                        <label>散开距离</label>
+                        <input type="range" id="cfg-scatter-distance" min="25" max="80" value="55">
+                        <span class="setting-value" id="cfg-scatter-distance-val">55</span>
+                    </div>
+                    <div class="setting-item">
+                        <label>聚焦距离</label>
+                        <input type="range" id="cfg-focus-distance" min="4" max="15" value="8">
+                        <span class="setting-value" id="cfg-focus-distance-val">8</span>
+                    </div>
+                </div>
+                <!-- 旋转设置 -->
+                <div class="settings-section">
+                    <div class="section-title">🔄 旋转</div>
+                    <div class="setting-item">
+                        <label>树模式速度</label>
+                        <input type="range" id="cfg-tree-rotate" min="0" max="100" value="30">
+                        <span class="setting-value" id="cfg-tree-rotate-val">0.3</span>
+                    </div>
+                    <div class="setting-item">
+                        <label>散开速度</label>
+                        <input type="range" id="cfg-scatter-rotate" min="0" max="50" value="5">
+                        <span class="setting-value" id="cfg-scatter-rotate-val">0.05</span>
+                    </div>
+                </div>
+                <!-- 发光设置 -->
+                <div class="settings-section">
+                    <div class="section-title">✨ 发光</div>
+                    <div class="setting-item">
+                        <label>泛光强度</label>
+                        <input type="range" id="cfg-bloom-strength" min="0" max="30" value="15">
+                        <span class="setting-value" id="cfg-bloom-strength-val">1.5</span>
+                    </div>
+                    <div class="setting-item">
+                        <label>泛光半径</label>
+                        <input type="range" id="cfg-bloom-radius" min="0" max="20" value="8">
+                        <span class="setting-value" id="cfg-bloom-radius-val">0.8</span>
+                    </div>
+                </div>
+                <!-- 星星设置 -->
+                <div class="settings-section">
+                    <div class="section-title">⭐ 星星</div>
+                    <div class="setting-item">
+                        <label>发光强度</label>
+                        <input type="range" id="cfg-star-glow" min="10" max="50" value="25">
+                        <span class="setting-value" id="cfg-star-glow-val">2.5</span>
+                    </div>
+                    <div class="setting-item">
+                        <label>闪烁速度</label>
+                        <input type="range" id="cfg-star-blink" min="1" max="20" value="8">
+                        <span class="setting-value" id="cfg-star-blink-val">0.8</span>
+                    </div>
+                </div>
+                <!-- 雪花设置 -->
+                <div class="settings-section">
+                    <div class="section-title">❄️ 雪花</div>
+                    <div class="setting-item">
+                        <label>下落速度</label>
+                        <input type="range" id="cfg-snow-speed" min="1" max="20" value="8">
+                        <span class="setting-value" id="cfg-snow-speed-val">0.08</span>
+                    </div>
+                    <div class="setting-item">
+                        <label>雪花大小</label>
+                        <input type="range" id="cfg-snow-size" min="1" max="10" value="2">
+                        <span class="setting-value" id="cfg-snow-size-val">0.2</span>
+                    </div>
+                    <div class="setting-item">
+                        <label>雪花数量</label>
+                        <input type="range" id="cfg-snow-count" min="100" max="3000" value="1000" step="100">
+                        <span class="setting-value" id="cfg-snow-count-val">1000</span>
+                    </div>
+                </div>
+                <!-- 装饰球设置 -->
+                <div class="settings-section">
+                    <div class="section-title">🔵 装饰球</div>
+                    <div class="setting-item">
+                        <label>主色球数量</label>
+                        <input type="range" id="cfg-ornament-count" min="100" max="600" value="400" step="10">
+                        <span class="setting-value" id="cfg-ornament-count-val">400</span>
+                    </div>
+                    <div class="setting-item">
+                        <label>副色球数量</label>
+                        <input type="range" id="cfg-whiteball-count" min="50" max="300" value="150" step="10">
+                        <span class="setting-value" id="cfg-whiteball-count-val">150</span>
+                    </div>
+                    <div class="setting-item">
+                        <label>方块数量</label>
+                        <input type="range" id="cfg-box-count" min="0" max="300" value="100" step="10">
+                        <span class="setting-value" id="cfg-box-count-val">100</span>
+                    </div>
+                </div>
+                <!-- 照片设置 -->
+                <div class="settings-section">
+                    <div class="section-title">🖼️ 照片</div>
+                    <div class="setting-item">
+                        <label>放大倍数</label>
+                        <input type="range" id="cfg-photo-scale" min="10" max="50" value="25">
+                        <span class="setting-value" id="cfg-photo-scale-val">2.5</span>
+                    </div>
+                </div>
+                <!-- 音乐设置 -->
+                <div class="settings-section">
+                    <div class="section-title">🎵 音乐</div>
+                    <div class="setting-item">
+                        <label>背景音乐</label>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="cfg-music-enabled" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="setting-item">
+                        <label>自动播放</label>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="cfg-music-autoplay" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+                <!-- 主题切换 -->
+                <div class="settings-section settings-section-wide">
+                    <div class="section-title">� 主题风格<i /div>
+                            <div class="theme-buttons">
+                                <button class="theme-btn active" data-theme="frozen" title="冰雪奇缘">
+                                    <span class="theme-icon">❄️</span>
+                                    <span class="theme-name">冰雪奇缘</span>
+                                </button>
+                                <button class="theme-btn" data-theme="golden" title="璀璨金辉">
+                                    <span class="theme-icon">✨</span>
+                                    <span class="theme-name">璀璨金辉</span>
+                                </button>
+                                <button class="theme-btn" data-theme="classic" title="经典圣诞">
+                                    <span class="theme-icon">🎅</span>
+                                    <span class="theme-name">经典圣诞</span>
+                                </button>
+                            </div>
+                    </div>
+                    <!-- 颜色设置 -->
+                    <div class="settings-section settings-section-wide">
+                        <div class="section-title">🎨 颜色</div>
+                        <div class="color-settings-row">
+                            <div class="color-item">
+                                <input type="color" id="cfg-ornament-color" value="#88ccff">
+                                <label>装饰球</label>
+                            </div>
+                            <div class="color-item">
+                                <input type="color" id="cfg-whiteball-color" value="#ffffff">
+                                <label>白色球</label>
+                            </div>
+                            <div class="color-item">
+                                <input type="color" id="cfg-box-color" value="#051020">
+                                <label>方块</label>
+                            </div>
+                            <div class="color-item">
+                                <input type="color" id="cfg-light-color" value="#0066ff">
+                                <label>灯光</label>
+                            </div>
+                            <div class="color-item">
+                                <input type="color" id="cfg-star-color" value="#ffff00">
+                                <label>星星</label>
+                            </div>
+                            <div class="color-item">
+                                <input type="color" id="cfg-snow-color" value="#ffffff">
+                                <label>雪花</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-action-btn" id="settings-reset">🔄 恢复默认</button>
+                <button class="modal-action-btn export" id="settings-apply">✓ 应用</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+        import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+        import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
+
+        // 全局变量
+        let scene, camera, renderer, composer, bloomPass, mainGroup;
+        let clock = new THREE.Clock();
+        let particleSystem = [], photoMeshGroup = new THREE.Group();
+        let handLandmarker, video, webcamCanvas, webcamCtx;
+        let snowSystem;
+        let photoDataArray = []; // 存储所有照片的base64数据
+        let photoIdToMeshMap = new Map(); // 照片ID到场景mesh的映射
+
+        // HDR加载状态
+        let hdrLoaded = false;
+
+        // 主题配色方案
+        const THEMES = {
+            // 冰雪奇缘 - 蓝白冰雪风格
+            frozen: {
+                name: '冰雪奇缘',
+                ornamentColor: '#88ccff',    // 冰蓝色装饰球
+                whiteBallColor: '#ffffff',   // 纯白色球
+                boxColor: '#051020',         // 深蓝色方块
+                lightColor: '#0066ff',       // 蓝色灯光
+                starColor: '#ffff00',        // 金黄色星星
+                snowColor: '#ffffff',        // 白色雪花
+                bgGradient: ['#0b1a2a', '#000000'],  // 背景渐变
+                titleGradient: ['#e0f7fa', '#ffffff', '#88ccff'],  // 标题渐变
+                accentColor: '#00ffcc',      // 强调色
+                // HDR加载成功时的泛光参数
+                bloomStrengthHDR: 0.2,
+                bloomRadiusHDR: 0.1,
+                // HDR加载失败时的泛光参数（默认值）
+                bloomStrength: 0.9,
+                bloomRadius: 0.5
+            },
+            // 璀璨金辉 - 金色奢华风格 (demo同款配色)
+            golden: {
+                name: '璀璨金辉',
+                ornamentColor: '#c09e30',    // 深金色装饰球 (demo同款)
+                whiteBallColor: '#a6202d',   // 暗红色球 (demo同款)
+                boxColor: '#967d2a',         // 深绿色方块 (demo同款)
+                lightColor: '#FFD700',       // 纯金色灯光 (demo同款)
+                starColor: '#FFD700',        // 金色星星 (demo同款)
+                snowColor: '#F5E6BF',        // 浅金色雪花 (demo同款)
+                bgGradient: ['#0a0a05', '#000000'],  // 深色背景渐变
+                titleGradient: ['#D4AF37', '#F5E6BF', '#D4AF37'],  // 标题渐变 (demo同款)
+                accentColor: '#D4AF37',      // 强调色 (demo同款)
+                // HDR加载成功时的泛光参数
+                bloomStrengthHDR: 0.4,
+                bloomRadiusHDR: 0.2,
+                // HDR加载失败时的泛光参数（默认值）
+                bloomStrength: 1.4,
+                bloomRadius: 0.8
+            },
+            // 经典圣诞 - 红绿传统风格
+            classic: {
+                name: '经典圣诞',
+                ornamentColor: '#b24c4c',    // 红色装饰球
+                whiteBallColor: '#38c838',   // 森林绿色球
+                boxColor: '#0a1a0a',         // 深绿色方块
+                lightColor: '#ff6600',       // 暖橙色灯光
+                starColor: '#ffd700',        // 金色星星
+                snowColor: '#ffffff',        // 白色雪花
+                bgGradient: ['#0a1a0a', '#000000'],  // 背景渐变
+                titleGradient: ['#ff4444', '#ffffff', '#228b22'],  // 标题渐变
+                accentColor: '#ff4444',      // 强调色
+                // HDR加载成功时的泛光参数
+                bloomStrengthHDR: 0.6,
+                bloomRadiusHDR: 0.2,
+                // HDR加载失败时的泛光参数（默认值）
+                bloomStrength: 1.8,
+                bloomRadius: 1.0
+            }
+        };
+
+        // 当前主题
+        let currentTheme = 'frozen';
+
+        // 配置参数（可通过设置面板调整）
+        const CONFIG = {
+            treeDistance: 45,
+            scatterDistance: 55,
+            focusDistance: 8,
+            treeRotate: 0.3,
+            scatterRotate: 0.1,
+            bloomStrength: 0.9,
+            bloomRadius: 0.5,
+            starGlow: 3,
+            starBlink: 1,
+            snowSpeed: 0.03,
+            snowSize: 0.2,
+            snowCount: 1000,             // 雪花数量
+            photoScale: 2.5,
+            // 数量配置 (参考demo调整)
+            ornamentCount: 400,          // 装饰球数量（增加，更紧密）
+            whiteBallCount: 150,         // 白色球数量（增加）
+            boxCount: 250,               // 方块数量（减少，可调节）
+            candyCount: 60,              // 糖果棒数量
+            // 球体大小配置
+            ballSizeMin: 0.3,            // 球最小尺寸（增大）
+            ballSizeMax: 1.2,            // 球最大尺寸（增大）
+            // 颜色配置
+            ornamentColor: '#88ccff',    // 装饰球颜色
+            whiteBallColor: '#ffffff',   // 白色球颜色
+            boxColor: '#051020',         // 方块颜色
+            lightColor: '#0066ff',       // 内部灯光颜色
+            starColor: '#ffff00',        // 星星颜色
+            snowColor: '#ffffff'         // 雪花颜色
+        };
+
+        // ========== 预置照片数据 ==========
+        // 使用方法：将导出的JSON文件中的 photos 数组内容粘贴到下面的数组中
+        // 格式示例：["data:image/jpeg;base64,/9j/4AAQ...", "data:image/png;base64,iVBORw0..."]
+        const PRESET_PHOTOS = [
+
+        ]
+        // ====================================
+
+        // 缓存配置
+        const CACHE_CONFIG = {
+            maxPhotos: 20,
+            maxSizeMB: 50,
+            dbName: 'ChristmasTreeDB',
+            storeName: 'photos',
+            // 音乐缓存配置
+            musicStoreName: 'music',
+            maxMusicSizeMB: 20
+        };
+
+        // IndexedDB 工具函数
+        const PhotoCache = {
+            db: null,
+
+            async init() {
+                return new Promise((resolve, reject) => {
+                    const request = indexedDB.open(CACHE_CONFIG.dbName, 1);
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = () => {
+                        this.db = request.result;
+                        resolve();
+                    };
+                    request.onupgradeneeded = (e) => {
+                        const db = e.target.result;
+                        if (!db.objectStoreNames.contains(CACHE_CONFIG.storeName)) {
+                            const store = db.createObjectStore(CACHE_CONFIG.storeName, { keyPath: 'id' });
+                            store.createIndex('timestamp', 'timestamp', { unique: false });
+                        }
+                    };
+                });
+            },
+
+            async savePhoto(base64Data) {
+                // 检查是否超出限制
+                const stats = await this.getStats();
+                const newSize = this.getBase64Size(base64Data);
+
+                if (stats.count >= CACHE_CONFIG.maxPhotos) {
+                    return { success: false, reason: 'count', message: `已达到最大缓存数量 (${CACHE_CONFIG.maxPhotos} 张)，请先删除一些照片` };
+                }
+
+                if ((stats.totalSize + newSize) / (1024 * 1024) > CACHE_CONFIG.maxSizeMB) {
+                    return { success: false, reason: 'size', message: `已达到最大缓存大小 (${CACHE_CONFIG.maxSizeMB} MB)，请先删除一些照片` };
+                }
+
+                const photo = {
+                    id: 'photo_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                    base64: base64Data,
+                    timestamp: Date.now(),
+                    size: newSize,
+                    inScene: true
+                };
+
+                return new Promise((resolve) => {
+                    const tx = this.db.transaction(CACHE_CONFIG.storeName, 'readwrite');
+                    const store = tx.objectStore(CACHE_CONFIG.storeName);
+                    const request = store.add(photo);
+                    request.onsuccess = () => resolve({ success: true, photo });
+                    request.onerror = () => resolve({ success: false, reason: 'db', message: '保存失败' });
+                });
+            },
+
+            async getAllPhotos() {
+                return new Promise((resolve) => {
+                    const tx = this.db.transaction(CACHE_CONFIG.storeName, 'readonly');
+                    const store = tx.objectStore(CACHE_CONFIG.storeName);
+                    const request = store.getAll();
+                    request.onsuccess = () => resolve(request.result || []);
+                    request.onerror = () => resolve([]);
+                });
+            },
+
+            async deletePhoto(id) {
+                return new Promise((resolve) => {
+                    const tx = this.db.transaction(CACHE_CONFIG.storeName, 'readwrite');
+                    const store = tx.objectStore(CACHE_CONFIG.storeName);
+                    const request = store.delete(id);
+                    request.onsuccess = () => resolve(true);
+                    request.onerror = () => resolve(false);
+                });
+            },
+
+            async updatePhoto(photo) {
+                return new Promise((resolve) => {
+                    const tx = this.db.transaction(CACHE_CONFIG.storeName, 'readwrite');
+                    const store = tx.objectStore(CACHE_CONFIG.storeName);
+                    const request = store.put(photo);
+                    request.onsuccess = () => resolve(true);
+                    request.onerror = () => resolve(false);
+                });
+            },
+
+            async clearAll() {
+                return new Promise((resolve) => {
+                    const tx = this.db.transaction(CACHE_CONFIG.storeName, 'readwrite');
+                    const store = tx.objectStore(CACHE_CONFIG.storeName);
+                    const request = store.clear();
+                    request.onsuccess = () => resolve(true);
+                    request.onerror = () => resolve(false);
+                });
+            },
+
+            async getStats() {
+                const photos = await this.getAllPhotos();
+                const totalSize = photos.reduce((sum, p) => sum + (p.size || 0), 0);
+                return {
+                    count: photos.length,
+                    totalSize,
+                    inSceneCount: photos.filter(p => p.inScene).length
+                };
+            },
+
+            getBase64Size(base64) {
+                // 计算base64字符串的实际字节大小
+                const base64Length = base64.length - (base64.indexOf(',') + 1);
+                const padding = (base64.match(/=+$/) || [''])[0].length;
+                return Math.floor((base64Length * 3) / 4) - padding;
+            },
+
+            formatSize(bytes) {
+                if (bytes < 1024) return bytes + ' B';
+                if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+                return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+            }
+        };
+
+        // 材质对象
+        const MATERIALS = {};
+
+        // 状态管理
+        const STATE = {
+            mode: 'TREE', // TREE, SCATTER, FOCUS
+            hand: { detected: false, x: 0, y: 0 },
+            rotation: { x: 0, y: 0 },
+            camera: {
+                targetPos: new THREE.Vector3(0, 2, 50),
+                targetLookAt: new THREE.Vector3(0, 0, 0),
+                currentLookAt: new THREE.Vector3(0, 0, 0)
+            },
+            focusTarget: null,
+            // 触摸捏合缩放状态
+            pinch: {
+                zoom: 1,
+                offsetX: 0,
+                offsetY: 0
+            },
+            // 手势捏合平移状态（FOCUS模式下）
+            handPinch: {
+                active: false,
+                offsetX: 0,
+                offsetY: 0
+            }
+        };
+
+        // 初始化 Three.js
+        function initThree() {
+            const container = document.getElementById('canvas-container');
+
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x111111, 0.02);
+
+            camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 3, 45);  // 调整相机位置，稍微往上看
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            // 优化色调映射，增强金属反光效果
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;  // 电影级色调映射
+            renderer.toneMappingExposure = 1.5;
+            renderer.outputColorSpace = THREE.SRGBColorSpace;
+            container.appendChild(renderer.domElement);
+
+            // 创建高质量环境贴图 - 使用HDR文件
+            const pmremGenerator = new THREE.PMREMGenerator(renderer);
+            pmremGenerator.compileEquirectangularShader();
+
+            // 加载HDR环境贴图
+            const rgbeLoader = new RGBELoader();
+            rgbeLoader.load(
+                'blocky_photo_studio_1k.hdr',
+                (texture) => {
+                    const envMap = pmremGenerator.fromEquirectangular(texture).texture;
+                    scene.environment = envMap;
+                    texture.dispose();
+                    pmremGenerator.dispose();
+                    console.log('HDR环境贴图加载成功');
+
+                    // 标记HDR加载成功，并应用当前主题的HDR泛光参数
+                    hdrLoaded = true;
+                    applyTheme(currentTheme);
+                },
+                undefined,
+                (error) => {
+                    console.warn('HDR加载失败，使用默认环境:', error);
+                    // 失败时使用默认环境
+                    const roomEnv = new RoomEnvironment();
+                    const envTexture = pmremGenerator.fromScene(roomEnv, 0.5).texture;
+                    scene.environment = envTexture;
+
+                    // 标记HDR加载失败，使用默认泛光参数
+                    hdrLoaded = false;
+                }
+            );
+            // 不设置背景，保持透明黑色背景
+            // scene.background = envTexture;
+
+            // 清理PMREM生成器
+            pmremGenerator.dispose();
+
+            mainGroup = new THREE.Group();
+            scene.add(mainGroup);
+        }
+
+        // 创建材质 (参考demo的3D效果，增强反射)
+        function createMaterials() {
+            // 装饰球材质 - 高金属感、低粗糙度，强反射
+            MATERIALS.gold = new THREE.MeshStandardMaterial({
+                color: 0x88ccff,
+                metalness: 1.0,           // 最高金属感
+                roughness: 0.05,          // 更低粗糙度，更强反射
+                envMapIntensity: 2.0,     // 增强环境贴图强度
+                emissive: 0x001122,
+                emissiveIntensity: 0.1
+            });
+
+            // 方块材质
+            MATERIALS.green = new THREE.MeshStandardMaterial({
+                color: 0x051020,
+                metalness: 0.5,
+                roughness: 0.3,
+                envMapIntensity: 1.0,
+                emissive: 0x000510,
+                emissiveIntensity: 0.2
+            });
+
+            // 白色球/第二种球材质 - 高金属感，强反射
+            MATERIALS.red = new THREE.MeshStandardMaterial({
+                color: 0xffffff,
+                metalness: 1.0,           // 最高金属感
+                roughness: 0.05,          // 更低粗糙度，更强反射
+                envMapIntensity: 2.0,     // 增强环境贴图强度
+                emissive: 0x111111,
+                emissiveIntensity: 0.05
+            });
+
+            MATERIALS.frame = new THREE.MeshBasicMaterial({ color: 0xffffff });
+
+            // 星星材质 - 发光效果
+            MATERIALS.star = new THREE.MeshStandardMaterial({
+                color: 0xffff00,
+                emissive: 0xFFD700,        // 金色发光 (demo同款)
+                emissiveIntensity: 1.5,
+                metalness: 0.9,
+                roughness: 0.1,
+                toneMapped: false
+            });
+
+            // 糖果纹理
+            const canvas = document.createElement('canvas');
+            canvas.width = 128;
+            canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, 128, 128);
+            ctx.fillStyle = '#0088ff';
+            ctx.beginPath();
+            for (let i = -128; i < 256; i += 32) {
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i + 32, 128);
+                ctx.lineTo(i + 16, 128);
+                ctx.lineTo(i - 16, 0);
+            }
+            ctx.fill();
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(3, 3);
+            MATERIALS.candy = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.4 });
+        }
+
+        // 灯光引用
+        let innerLight;
+
+        // 设置灯光 (优化反光效果，参考demo)
+        function setupLights() {
+            // 环境光 - 提供基础照明
+            scene.add(new THREE.AmbientLight(0x004422, 0.3));  // 深绿色环境光
+
+            // 内部点光源 - 树内部发光
+            innerLight = new THREE.PointLight(0x0066ff, 2, 20);
+            innerLight.position.set(0, 5, 0);
+            mainGroup.add(innerLight);
+
+            // 主聚光灯 - 从右上方照射，产生高光
+            const spot1 = new THREE.SpotLight(0xfff5cc, 2);  // 暖白色
+            spot1.position.set(10, 20, 10);
+            spot1.angle = 0.3;
+            spot1.penumbra = 1;
+            spot1.castShadow = true;
+            scene.add(spot1);
+
+            // 辅助点光源 - 金色光，增强金属反光
+            const goldLight = new THREE.PointLight(0xD4AF37, 1.5, 50);
+            goldLight.position.set(-10, 5, -10);
+            scene.add(goldLight);
+
+            // 填充光 - 从正面照射
+            const fill = new THREE.DirectionalLight(0xffffff, 0.5);
+            fill.position.set(0, 0, 50);
+            scene.add(fill);
+
+            // 顶部光 - 照亮星星
+            const topLight = new THREE.PointLight(0xFFD700, 2, 30);
+            topLight.position.set(0, 15, 5);
+            scene.add(topLight);
+        }
+
+        // 粒子类 (参考demo优化分布)
+        class Particle {
+            constructor(mesh, type) {
+                this.mesh = mesh;
+                this.type = type;
+                this.posTree = new THREE.Vector3();
+                this.posScatter = new THREE.Vector3();
+                this.baseScale = mesh.scale.x;
+                this.spinSpeed = new THREE.Vector3(
+                    Math.random() - 0.5,
+                    Math.random() - 0.5,
+                    Math.random() - 0.5
+                ).multiplyScalar(type === 'PHOTO' ? 0.3 : 2.0);
+
+                // 树形位置 (参考demo的分布算法)
+                const treeHeight = 18;   // 树的高度（增高）
+                const baseRadius = 6;    // 底部半径
+                const treeBaseY = -10;    // 树底部的Y坐标
+
+                // t值分布：使用平方让底部更密集
+                const t = Math.pow(Math.random(), 1.5);
+                const y = treeBaseY + t * treeHeight;  // 从-7到11
+
+                // 半径随高度递减，底部更宽
+                const radiusFactor = 1 - t;
+                const r = baseRadius * radiusFactor + Math.random() * 0.5;
+
+                // 使用黄金角度螺旋分布
+                const goldenAngle = 2.39996;
+                const a = goldenAngle * (Math.random() * 1000);
+
+                this.posTree.set(Math.cos(a) * r, y, Math.sin(a) * r);
+
+                // 散开位置
+                const rs = 12 + Math.random() * 25;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos(2 * Math.random() - 1);
+                this.posScatter.set(
+                    rs * Math.sin(phi) * Math.cos(theta),
+                    rs * Math.sin(phi) * Math.sin(theta),
+                    rs * Math.cos(phi)
+                );
+            }
+
+            update(dt, mode) {
+                let target = (mode === 'SCATTER' || mode === 'FOCUS') ? this.posScatter : this.posTree;
+                this.mesh.position.lerp(target, 2.5 * dt);
+
+                // 朝向控制
+                if (mode === 'FOCUS' && STATE.focusTarget === this.mesh) {
+                    this.mesh.lookAt(camera.position);
+                } else if (mode === 'SCATTER') {
+                    this.mesh.rotation.x += this.spinSpeed.x * dt;
+                    this.mesh.rotation.y += this.spinSpeed.y * dt;
+                } else {
+                    this.mesh.rotation.set(
+                        THREE.MathUtils.lerp(this.mesh.rotation.x, 0, dt),
+                        this.mesh.rotation.y + 0.5 * dt,
+                        THREE.MathUtils.lerp(this.mesh.rotation.z, 0, dt)
+                    );
+                }
+
+                // 缩放控制
+                let s = this.baseScale;
+                if ((mode === 'SCATTER' || mode === 'FOCUS') && this.type === 'PHOTO') {
+                    s = this.baseScale * CONFIG.photoScale;
+                }
+                this.mesh.scale.lerp(new THREE.Vector3(s, s, s), 4 * dt);
+            }
+        }
+
+        // 创建粒子系统 (参考demo调整球的大小和分布)
+        function createParticles() {
+            const sphere = new THREE.SphereGeometry(0.5, 32, 32);
+            const box = new THREE.BoxGeometry(0.55, 0.55, 0.55);
+            const curve = new THREE.CatmullRomCurve3([
+                new THREE.Vector3(0, -0.5, 0),
+                new THREE.Vector3(0, 0.3, 0),
+                new THREE.Vector3(0.1, 0.5, 0),
+                new THREE.Vector3(0.3, 0.4, 0)
+            ]);
+            const candy = new THREE.TubeGeometry(curve, 16, 0.08, 8, false);
+
+            // 创建装饰球（主色球）- 更大、更紧密
+            for (let i = 0; i < CONFIG.ornamentCount; i++) {
+                const mesh = new THREE.Mesh(sphere, MATERIALS.gold);
+                // 球的大小：底部更大，顶部更小（参考demo）
+                const sizeRange = CONFIG.ballSizeMax - CONFIG.ballSizeMin;
+                const s = CONFIG.ballSizeMin + Math.random() * sizeRange;
+                mesh.scale.set(s, s, s);
+                mesh.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+                mainGroup.add(mesh);
+                particleSystem.push(new Particle(mesh, 'GOLD_SPHERE'));
+            }
+
+            // 创建白色球/第二色球 - 更大
+            for (let i = 0; i < CONFIG.whiteBallCount; i++) {
+                const mesh = new THREE.Mesh(sphere, MATERIALS.red);
+                const sizeRange = CONFIG.ballSizeMax - CONFIG.ballSizeMin;
+                const s = CONFIG.ballSizeMin + Math.random() * sizeRange;
+                mesh.scale.set(s, s, s);
+                mesh.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+                mainGroup.add(mesh);
+                particleSystem.push(new Particle(mesh, 'RED'));
+            }
+
+            // 创建方块（绿色和金色）- 使用配置的数量
+            for (let i = 0; i < CONFIG.boxCount; i++) {
+                const isGold = Math.random() < 0.4;
+                const mesh = new THREE.Mesh(box, isGold ? MATERIALS.gold : MATERIALS.green);
+                const type = isGold ? 'GOLD_BOX' : 'BOX';
+                const s = 0.4 + Math.random() * 0.4;
+                mesh.scale.set(s, s, s);
+                mesh.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+                mainGroup.add(mesh);
+                particleSystem.push(new Particle(mesh, type));
+            }
+
+            // 创建糖果棒 - 使用配置的数量
+            for (let i = 0; i < CONFIG.candyCount; i++) {
+                const mesh = new THREE.Mesh(candy, MATERIALS.candy);
+                const s = 0.4 + Math.random() * 0.5;
+                mesh.scale.set(s, s, s);
+                mesh.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+                mainGroup.add(mesh);
+                particleSystem.push(new Particle(mesh, 'CANE'));
+            }
+
+            // 顶部五角星
+            const starShape = new THREE.Shape();
+            const outerRadius = 1.2;
+            const innerRadius = 0.48;
+            const points = 5;
+
+            for (let i = 0; i < points * 2; i++) {
+                const angle = (i * Math.PI) / points - Math.PI / 2;
+                const radius = i % 2 === 0 ? outerRadius : innerRadius;
+                const x = Math.cos(angle) * radius;
+                const y = Math.sin(angle) * radius;
+                if (i === 0) starShape.moveTo(x, y);
+                else starShape.lineTo(x, y);
+            }
+            starShape.closePath();
+
+            const extrudeSettings = {
+                depth: 0.2,
+                bevelEnabled: true,
+                bevelThickness: 0.1,
+                bevelSize: 0.1,
+                bevelSegments: 3
+            };
+            const starGeometry = new THREE.ExtrudeGeometry(starShape, extrudeSettings);
+            starGeometry.center();
+
+            const topStar = new THREE.Mesh(starGeometry, MATERIALS.star);
+            topStar.position.set(0, 9, 0);  // 调整到树顶上方
+            // 不旋转，让星星正面朝向相机（Z轴方向）
+            mainGroup.add(topStar);
+
+            // 星星点光源
+            const starLight = new THREE.PointLight(0xffd700, 2, 10);
+            starLight.position.set(0, 9, 0);  // 与星星同步
+            mainGroup.add(starLight);
+
+            // 保存引用用于动画
+            window.topStar = topStar;
+            window.starLight = starLight;
+
+            mainGroup.add(photoMeshGroup);
+        }
+
+        // 创建雪花
+        function createSnow() {
+            const snowCount = CONFIG.snowCount * 3; // 每个雪花3个坐标值
+            const positions = new Float32Array(snowCount);
+            for (let i = 0; i < snowCount; i += 3) {
+                positions[i] = (Math.random() - 0.5) * 80;
+                positions[i + 1] = (Math.random() - 0.5) * 80 + 20;
+                positions[i + 2] = (Math.random() - 0.5) * 80;
+            }
+
+            snowSystem = new THREE.Points(
+                new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(positions, 3)),
+                new THREE.PointsMaterial({
+                    color: 0xffffff,
+                    size: CONFIG.snowSize,
+                    transparent: true,
+                    opacity: 0.6,
+                    blending: THREE.AdditiveBlending
+                })
+            );
+            scene.add(snowSystem);
+        }
+
+        // 创建默认照片
+        let defaultPhotoTexture;
+        function createDefaultPhotos() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = '#050505';
+            ctx.fillRect(0, 0, 512, 512);
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 15;
+            ctx.strokeRect(20, 20, 472, 472);
+            ctx.font = '500 60px Times New Roman';
+            ctx.fillStyle = '#aaddff';
+            ctx.textAlign = 'center';
+            ctx.fillText("预祝家人们", 256, 230);
+            ctx.fillText("圣诞快乐！", 256, 300);
+
+            defaultPhotoTexture = new THREE.CanvasTexture(canvas);
+            defaultPhotoTexture.colorSpace = THREE.SRGBColorSpace;
+            addPhotoToScene(defaultPhotoTexture);
+        }
+
+        // 添加照片到场景
+        function addPhotoToScene(texture, base64Data = null, photoId = null) {
+            const ar = texture.image.width / texture.image.height;
+            const w = ar > 1 ? 1.2 : 1.2 * ar;
+            const h = ar > 1 ? 1.2 / ar : 1.2;
+
+            const group = new THREE.Group();
+            group.add(new THREE.Mesh(
+                new THREE.BoxGeometry(w + 0.1, h + 0.1, 0.05),
+                MATERIALS.frame
+            ));
+
+            const photoMaterial = new THREE.MeshBasicMaterial({
+                map: texture,
+                side: THREE.DoubleSide
+            });
+            const photo = new THREE.Mesh(
+                new THREE.PlaneGeometry(w, h),
+                photoMaterial
+            );
+            photo.position.z = 0.04;
+            group.add(photo);
+
+            // 添加背面照片，让两面都显示图片
+            const photoBack = new THREE.Mesh(
+                new THREE.PlaneGeometry(w, h),
+                photoMaterial
+            );
+            photoBack.position.z = -0.04;
+            photoBack.rotation.y = Math.PI;
+            group.add(photoBack);
+            group.scale.setScalar(0.8);
+
+            // 存储photoId以便后续管理
+            if (photoId) {
+                group.userData.photoId = photoId;
+                photoIdToMeshMap.set(photoId, group);
+            }
+
+            photoMeshGroup.add(group);
+            particleSystem.push(new Particle(group, 'PHOTO'));
+
+            // 保存base64数据
+            if (base64Data) {
+                photoDataArray.push(base64Data);
+            }
+
+            return group;
+        }
+
+        // 从场景移除照片
+        function removePhotoFromScene(photoId) {
+            const mesh = photoIdToMeshMap.get(photoId);
+            if (mesh) {
+                // 从粒子系统中移除
+                const particleIndex = particleSystem.findIndex(p => p.mesh === mesh);
+                if (particleIndex !== -1) {
+                    particleSystem.splice(particleIndex, 1);
+                }
+                // 从场景中移除
+                photoMeshGroup.remove(mesh);
+                // 清理映射
+                photoIdToMeshMap.delete(photoId);
+
+                // 从photoDataArray中移除对应的base64数据
+                // 需要通过mesh的userData或其他方式找到对应索引
+                return true;
+            }
+            return false;
+        }
+
+        // 后处理
+        function setupPostProcessing() {
+            composer = new EffectComposer(renderer);
+            composer.addPass(new RenderPass(scene, camera));
+            bloomPass = new UnrealBloomPass(
+                new THREE.Vector2(window.innerWidth, window.innerHeight),
+                1.5,
+                0.4,
+                0.85
+            );
+            composer.addPass(bloomPass);
+        }
+
+        // UI隐藏状态
+        let uiHidden = false;
+
+        // 切换所有UI显示/隐藏
+        function toggleAllUI() {
+            uiHidden = !uiHidden;
+            const newDisplay = uiHidden ? 'none' : '';
+
+            // 标题
+            const h1 = document.querySelector('h1');
+            if (h1) h1.style.display = newDisplay;
+
+            // 顶部按钮
+            const uploadWrapper = document.querySelector('.upload-wrapper');
+            if (uploadWrapper) uploadWrapper.style.display = newDisplay;
+
+            // 操作提示
+            const tips = document.getElementById('tips');
+            if (tips) tips.style.display = newDisplay;
+
+            // 移动端控制按钮
+            const mobileControls = document.getElementById('mobile-controls');
+            if (mobileControls) mobileControls.style.display = uiHidden ? 'none' : 'flex';
+
+            // 摄像头预览
+            const webcamWrapper = document.getElementById('webcam-wrapper');
+            if (webcamWrapper) webcamWrapper.style.display = newDisplay;
+
+            // 音乐播放器小部件
+            const musicWidget = document.getElementById('music-widget');
+            if (musicWidget) musicWidget.style.display = uiHidden ? 'none' : 'flex';
+        }
+
+        // 事件监听
+        function setupEvents() {
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                composer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            // 音乐控制 - 打开音乐管理模态框
+            const musicBtn = document.getElementById('music-btn');
+            musicBtn.addEventListener('click', () => {
+                document.getElementById('music-modal').classList.add('show');
+            });
+
+            // 键盘控制显示隐藏
+            document.addEventListener('keydown', (e) => {
+                const key = e.key.toLowerCase();
+
+                // V键 - 切换摄像头预览区域
+                if (key === 'v') {
+                    const webcamWrapper = document.getElementById('webcam-wrapper');
+                    webcamWrapper.style.display = webcamWrapper.style.display === 'none' ? 'block' : 'none';
+                }
+
+                // F键 - 切换全屏
+                if (key === 'f') {
+                    if (!document.fullscreenElement) {
+                        document.documentElement.requestFullscreen().catch(err => {
+                            console.log('全屏切换失败:', err);
+                        });
+                    } else {
+                        document.exitFullscreen();
+                    }
+                }
+
+                // H键 - 切换所有UI控件（标题、按钮、提示、摄像头）
+                if (key === 'h') {
+                    toggleAllUI();
+                }
+
+                // 键盘交互 - 替代手势控制（适用于没有摄像头的电脑）
+                // 1键或T键 - 圣诞树模式（对应握拳手势）
+                if (key === '1' || key === 't') {
+                    STATE.mode = 'TREE';
+                    STATE.focusTarget = null;
+                }
+
+                // 2键或S键 - 星河散开模式（对应张手手势）
+                if (key === '2' || key === 's') {
+                    STATE.mode = 'SCATTER';
+                    STATE.focusTarget = null;
+                }
+
+                // 3键或P键 - 锁定照片模式（对应捏合手势）
+                if (key === '3' || key === 'p') {
+                    STATE.mode = 'FOCUS';
+                    // 重置所有偏移量，让照片居中
+                    STATE.pinch.offsetX = 0;
+                    STATE.pinch.offsetY = 0;
+                    STATE.pinch.zoom = 1;
+                    STATE.handPinch.offsetX = 0;
+                    STATE.handPinch.offsetY = 0;
+                    if (camera) {
+                        camera.fov = 42;
+                        camera.updateProjectionMatrix();
+                    }
+                    if (!STATE.focusTarget) {
+                        const photos = particleSystem.filter(p => p.type === 'PHOTO');
+                        if (photos.length) {
+                            STATE.focusTarget = photos[Math.floor(Math.random() * photos.length)].mesh;
+                        }
+                    }
+                }
+
+                // N键 - 切换到下一张照片（在FOCUS模式下）
+                if (key === 'n' && STATE.mode === 'FOCUS') {
+                    const photos = particleSystem.filter(p => p.type === 'PHOTO');
+                    if (photos.length > 1) {
+                        const currentIndex = photos.findIndex(p => p.mesh === STATE.focusTarget);
+                        const nextIndex = (currentIndex + 1) % photos.length;
+                        STATE.focusTarget = photos[nextIndex].mesh;
+                    }
+                }
+            });
+
+            // ========== 移动端触摸控制 ==========
+            setupMobileControls();
+
+            // ========== PC端鼠标控制 ==========
+            setupMouseControls();
+
+            // ========== 双击隐藏UI ==========
+            setupDoubleClickHideUI();
+
+            // 缓存管理模态框
+            setupCacheManagement();
+            // 导出命名对话框
+            setupExportNameModal();
+            // 音乐管理
+            setupMusicManagement();
+            // 配置面板
+            setupSettingsPanel();
+        }
+
+        // 缓存管理功能
+        function setupCacheManagement() {
+            const modal = document.getElementById('cache-modal');
+            const manageBtn = document.getElementById('manage-btn');
+            const closeBtn = document.getElementById('modal-close');
+            const clearAllBtn = document.getElementById('clear-all-btn');
+            const photoGrid = document.getElementById('photo-grid');
+            const cacheStats = document.getElementById('cache-stats');
+
+            // 打开模态框
+            manageBtn.addEventListener('click', () => {
+                modal.classList.add('show');
+                renderPhotoGrid();
+            });
+
+            // 关闭模态框
+            closeBtn.addEventListener('click', () => {
+                modal.classList.remove('show');
+            });
+
+            // 点击背景关闭
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.classList.remove('show');
+                }
+            });
+
+            // 清空全部缓存
+            clearAllBtn.addEventListener('click', async () => {
+                if (!confirm('确定要清空所有缓存的照片吗？此操作不可恢复！')) return;
+
+                // 从场景中移除所有照片
+                const photos = await PhotoCache.getAllPhotos();
+                photos.forEach(photo => {
+                    removePhotoFromScene(photo.id);
+                });
+
+                // 清空缓存
+                await PhotoCache.clearAll();
+                photoDataArray = [];
+
+                renderPhotoGrid();
+                alert('已清空所有缓存照片！');
+            });
+
+            // 上传照片
+            document.getElementById('file-input').addEventListener('change', async (e) => {
+                const files = Array.from(e.target.files);
+                let uploadedCount = 0;
+
+                for (const file of files) {
+                    const reader = new FileReader();
+                    reader.onload = async (ev) => {
+                        const base64 = ev.target.result;
+
+                        // 先保存到缓存
+                        const result = await PhotoCache.savePhoto(base64);
+                        if (!result.success) {
+                            alert(result.message);
+                            return;
+                        }
+
+                        // 加载纹理并添加到场景
+                        new THREE.TextureLoader().load(base64, (texture) => {
+                            texture.colorSpace = THREE.SRGBColorSpace;
+                            addPhotoToScene(texture, base64, result.photo.id);
+                            uploadedCount++;
+
+                            // 上传完成后刷新网格
+                            if (uploadedCount === files.length) {
+                                renderPhotoGrid();
+                            }
+                        });
+                    };
+                    reader.readAsDataURL(file);
+                }
+                e.target.value = ''; // 清空input，允许重复上传
+            });
+
+            // 导入照片
+            document.getElementById('import-input').addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = async (ev) => {
+                    try {
+                        const importData = JSON.parse(ev.target.result);
+
+                        if (!importData.photos || !Array.isArray(importData.photos)) {
+                            alert('无效的照片数据格式！');
+                            return;
+                        }
+
+                        let loadedCount = 0;
+                        let failedCount = 0;
+
+                        for (const base64 of importData.photos) {
+                            // 先保存到缓存
+                            const result = await PhotoCache.savePhoto(base64);
+                            if (!result.success) {
+                                failedCount++;
+                                if (failedCount === 1) {
+                                    alert(result.message);
+                                }
+                                continue;
+                            }
+
+                            await new Promise((resolve) => {
+                                new THREE.TextureLoader().load(base64, (texture) => {
+                                    texture.colorSpace = THREE.SRGBColorSpace;
+                                    addPhotoToScene(texture, base64, result.photo.id);
+                                    loadedCount++;
+                                    resolve();
+                                });
+                            });
+                        }
+
+                        renderPhotoGrid();
+
+                        if (loadedCount > 0) {
+                            alert(`成功导入 ${loadedCount} 张照片！${failedCount > 0 ? `\n${failedCount} 张因缓存限制未能导入` : ''}`);
+                        }
+                    } catch (error) {
+                        console.error('导入失败:', error);
+                        alert('导入失败！请确保文件格式正确。');
+                    }
+                };
+                reader.readAsText(file);
+                e.target.value = ''; // 清空input，允许重复导入同一文件
+            });
+
+            // 导出照片 - 显示命名对话框
+            document.getElementById('export-btn').addEventListener('click', async () => {
+                const photos = await PhotoCache.getAllPhotos();
+                if (photos.length === 0) {
+                    alert('没有可导出的照片！请先上传照片。');
+                    return;
+                }
+
+                // 显示命名对话框
+                showExportNameModal();
+            });
+
+            // 渲染照片网格
+            async function renderPhotoGrid() {
+                const photos = await PhotoCache.getAllPhotos();
+                const stats = await PhotoCache.getStats();
+
+                // 更新统计信息
+                const isWarning = stats.count >= CACHE_CONFIG.maxPhotos * 0.8 ||
+                    stats.totalSize / (1024 * 1024) >= CACHE_CONFIG.maxSizeMB * 0.8;
+
+                cacheStats.innerHTML = `已缓存 <span class="${isWarning ? 'warning' : 'highlight'}">${stats.count}</span> 张照片 ` +
+                    `(<span class="${isWarning ? 'warning' : 'highlight'}">${PhotoCache.formatSize(stats.totalSize)}</span> / ${CACHE_CONFIG.maxSizeMB} MB)`;
+
+                // 渲染照片列表
+                if (photos.length === 0) {
+                    photoGrid.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📷</div>
+                            <div>暂无缓存照片</div>
+                            <div style="margin-top:10px; font-size:9px;">上传照片后会自动缓存到本地</div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                photoGrid.innerHTML = photos.map(photo => {
+                    const isInScene = photoIdToMeshMap.has(photo.id);
+                    return `
+                        <div class="photo-item ${isInScene ? 'in-scene' : ''}" data-id="${photo.id}">
+                            <img class="photo-thumb" src="${photo.base64}" alt="照片">
+                            <div class="photo-info">
+                                <div class="photo-size">${PhotoCache.formatSize(photo.size)}</div>
+                                <div class="photo-status">${isInScene ? '✓ 已添加到场景' : '未添加'}</div>
+                                <div class="photo-actions">
+                                    ${isInScene ?
+                            `<button class="photo-action-btn remove-scene" data-action="remove" data-id="${photo.id}">从场景移除</button>` :
+                            `<button class="photo-action-btn add-scene" data-action="add" data-id="${photo.id}">添加到场景</button>`
+                        }
+                                    <button class="photo-action-btn delete" data-action="delete" data-id="${photo.id}">删除</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                // 绑定按钮事件
+                photoGrid.querySelectorAll('.photo-action-btn').forEach(btn => {
+                    btn.addEventListener('click', async (e) => {
+                        const action = e.target.dataset.action;
+                        const photoId = e.target.dataset.id;
+
+                        if (action === 'add') {
+                            await addPhotoToSceneFromCache(photoId);
+                        } else if (action === 'remove') {
+                            await removePhotoAndUpdateCache(photoId);
+                        } else if (action === 'delete') {
+                            await deletePhotoFromCache(photoId);
+                        }
+
+                        renderPhotoGrid();
+                    });
+                });
+            }
+
+            // 从缓存添加照片到场景
+            async function addPhotoToSceneFromCache(photoId) {
+                const photos = await PhotoCache.getAllPhotos();
+                const photo = photos.find(p => p.id === photoId);
+                if (!photo) return;
+
+                await new Promise((resolve) => {
+                    new THREE.TextureLoader().load(photo.base64, (texture) => {
+                        texture.colorSpace = THREE.SRGBColorSpace;
+                        addPhotoToScene(texture, photo.base64, photo.id);
+                        resolve();
+                    });
+                });
+
+                // 更新缓存中的状态
+                photo.inScene = true;
+                await PhotoCache.updatePhoto(photo);
+            }
+
+            // 从场景移除照片并更新缓存
+            async function removePhotoAndUpdateCache(photoId) {
+                removePhotoFromScene(photoId);
+
+                // 更新缓存中的状态
+                const photos = await PhotoCache.getAllPhotos();
+                const photo = photos.find(p => p.id === photoId);
+                if (photo) {
+                    photo.inScene = false;
+                    await PhotoCache.updatePhoto(photo);
+                }
+            }
+
+            // 从缓存中删除照片
+            async function deletePhotoFromCache(photoId) {
+                if (!confirm('确定要从缓存中删除这张照片吗？')) return;
+
+                // 如果在场景中，先移除
+                removePhotoFromScene(photoId);
+
+                // 从缓存中删除
+                await PhotoCache.deletePhoto(photoId);
+            }
+        }
+
+        // 显示导出命名对话框
+        function showExportNameModal() {
+            const modal = document.getElementById('export-name-modal');
+            const themeInput = document.getElementById('export-theme');
+            const customInput = document.getElementById('export-custom');
+            const dateInput = document.getElementById('export-date');
+            const previewSpan = document.getElementById('filename-preview');
+
+            // 设置默认值
+            themeInput.value = 'Merry Christmas';
+            customInput.value = '';
+            dateInput.value = new Date().toISOString().split('T')[0]; // 2024-12-14格式
+
+            // 更新预览
+            function updatePreview() {
+                const theme = themeInput.value.trim() || 'Merry Christmas';
+                const custom = customInput.value.trim();
+                const date = dateInput.value;
+
+                let filename = '';
+                if (custom) {
+                    filename = custom + '_';
+                }
+                filename += theme + '_' + date + '.json';
+
+                previewSpan.textContent = filename;
+            }
+
+            updatePreview();
+
+            // 移除旧的事件监听器（防止重复绑定）
+            const newThemeInput = themeInput.cloneNode(true);
+            const newCustomInput = customInput.cloneNode(true);
+            themeInput.parentNode.replaceChild(newThemeInput, themeInput);
+            customInput.parentNode.replaceChild(newCustomInput, customInput);
+
+            // 重新获取元素并绑定事件
+            document.getElementById('export-theme').addEventListener('input', updatePreview);
+            document.getElementById('export-custom').addEventListener('input', updatePreview);
+
+            modal.classList.add('show');
+        }
+
+        // 设置导出命名对话框事件
+        function setupExportNameModal() {
+            const modal = document.getElementById('export-name-modal');
+            const closeBtn = document.getElementById('export-name-close');
+            const cancelBtn = document.getElementById('export-cancel');
+            const confirmBtn = document.getElementById('export-confirm');
+
+            // 关闭对话框
+            closeBtn.addEventListener('click', () => modal.classList.remove('show'));
+            cancelBtn.addEventListener('click', () => modal.classList.remove('show'));
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) modal.classList.remove('show');
+            });
+
+            // 确认导出
+            confirmBtn.addEventListener('click', async () => {
+                const theme = document.getElementById('export-theme').value.trim() || 'Merry Christmas';
+                const custom = document.getElementById('export-custom').value.trim();
+                const date = document.getElementById('export-date').value;
+
+                // 生成文件名
+                let filename = '';
+                if (custom) {
+                    filename = custom + '_';
+                }
+                filename += theme + '_' + date + '.json';
+
+                // 执行导出
+                const photos = await PhotoCache.getAllPhotos();
+                const exportData = {
+                    version: '1.0',
+                    exportDate: new Date().toISOString(),
+                    photos: photos.map(p => p.base64)
+                };
+
+                const dataStr = JSON.stringify(exportData, null, 2);
+                const blob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.click();
+                URL.revokeObjectURL(url);
+
+                modal.classList.remove('show');
+                alert(`成功导出 ${photos.length} 张照片！\n文件名: ${filename}`);
+            });
+        }
+
+        // ========== 主题切换函数 ==========
+        // 辅助函数：将十六进制颜色转换为RGB值
+        function hexToRgb(hex) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}` : '0, 255, 204';
+        }
+
+        // 辅助函数：使颜色变亮
+        function lightenColor(hex, percent) {
+            const num = parseInt(hex.replace('#', ''), 16);
+            const amt = Math.round(2.55 * percent);
+            const R = Math.min(255, (num >> 16) + amt);
+            const G = Math.min(255, ((num >> 8) & 0x00FF) + amt);
+            const B = Math.min(255, (num & 0x0000FF) + amt);
+            return `#${(0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1)}`;
+        }
+
+        function applyTheme(themeName) {
+            const theme = THEMES[themeName];
+            if (!theme) return;
+
+            currentTheme = themeName;
+
+            // 更新CONFIG中的颜色配置
+            CONFIG.ornamentColor = theme.ornamentColor;
+            CONFIG.whiteBallColor = theme.whiteBallColor;
+            CONFIG.boxColor = theme.boxColor;
+            CONFIG.lightColor = theme.lightColor;
+            CONFIG.starColor = theme.starColor;
+            CONFIG.snowColor = theme.snowColor;
+
+            // 根据HDR加载状态选择泛光参数
+            if (hdrLoaded) {
+                // HDR加载成功，使用低泛光参数
+                CONFIG.bloomStrength = theme.bloomStrengthHDR;
+                CONFIG.bloomRadius = theme.bloomRadiusHDR;
+                console.log(`应用主题 ${theme.name} (HDR模式): 泛光强度=${CONFIG.bloomStrength}, 半径=${CONFIG.bloomRadius}`);
+            } else {
+                // HDR加载失败，使用默认泛光参数
+                CONFIG.bloomStrength = theme.bloomStrength;
+                CONFIG.bloomRadius = theme.bloomRadius;
+                console.log(`应用主题 ${theme.name} (默认模式): 泛光强度=${CONFIG.bloomStrength}, 半径=${CONFIG.bloomRadius}`);
+            }
+
+            // 应用颜色到场景
+            applyColorSettings();
+
+            // 更新背景渐变
+            document.body.style.background = `radial-gradient(circle at center, ${theme.bgGradient[0]} 0%, ${theme.bgGradient[1]} 100%)`;
+
+            // 更新标题渐变
+            const h1 = document.querySelector('h1');
+            if (h1) {
+                h1.style.background = `linear-gradient(135deg, ${theme.titleGradient[0]} 0%, ${theme.titleGradient[1]} 50%, ${theme.titleGradient[2]} 100%)`;
+                h1.style.backgroundSize = '200% auto';
+                h1.style.webkitBackgroundClip = 'text';
+                h1.style.backgroundClip = 'text';
+                h1.style.webkitTextFillColor = 'transparent';
+            }
+
+            // 更新UI强调色（CSS变量方式）
+            document.documentElement.style.setProperty('--accent-color', theme.accentColor);
+            document.documentElement.style.setProperty('--accent-color-rgb', hexToRgb(theme.accentColor));
+            document.documentElement.style.setProperty('--accent-color-light', lightenColor(theme.accentColor, 30));
+
+            // 更新颜色选择器的值
+            document.getElementById('cfg-ornament-color').value = theme.ornamentColor;
+            document.getElementById('cfg-whiteball-color').value = theme.whiteBallColor;
+            document.getElementById('cfg-box-color').value = theme.boxColor;
+            document.getElementById('cfg-light-color').value = theme.lightColor;
+            document.getElementById('cfg-star-color').value = theme.starColor;
+            document.getElementById('cfg-snow-color').value = theme.snowColor;
+
+            // 更新泛光滑块的值
+            document.getElementById('cfg-bloom-strength').value = theme.bloomStrength * 10;
+            document.getElementById('cfg-bloom-strength-val').textContent = theme.bloomStrength.toFixed(1);
+            document.getElementById('cfg-bloom-radius').value = theme.bloomRadius * 10;
+            document.getElementById('cfg-bloom-radius-val').textContent = theme.bloomRadius.toFixed(1);
+
+            // 更新主题按钮状态
+            document.querySelectorAll('.theme-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.theme === themeName);
+            });
+
+            // 保存主题选择
+            localStorage.setItem('christmasTheme', themeName);
+        }
+
+        // ========== 配置面板 ==========
+        function setupSettingsPanel() {
+            const modal = document.getElementById('settings-modal');
+            const settingsBtn = document.getElementById('settings-btn');
+            const closeBtn = document.getElementById('settings-close');
+            const resetBtn = document.getElementById('settings-reset');
+            const applyBtn = document.getElementById('settings-apply');
+
+            // 主题按钮事件
+            document.querySelectorAll('.theme-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const themeName = btn.dataset.theme;
+                    applyTheme(themeName);
+                });
+            });
+
+            // 恢复保存的主题
+            const savedTheme = localStorage.getItem('christmasTheme');
+            if (savedTheme && THEMES[savedTheme]) {
+                applyTheme(savedTheme);
+            }
+
+            // 打开面板
+            settingsBtn.addEventListener('click', () => {
+                modal.classList.add('show');
+                loadSettingsToUI();
+            });
+
+            // 关闭面板
+            closeBtn.addEventListener('click', () => modal.classList.remove('show'));
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) modal.classList.remove('show');
+            });
+
+            // 滑块实时更新显示值
+            const sliders = {
+                'cfg-tree-distance': { config: 'treeDistance', display: v => v },
+                'cfg-scatter-distance': { config: 'scatterDistance', display: v => v },
+                'cfg-focus-distance': { config: 'focusDistance', display: v => v },
+                'cfg-tree-rotate': { config: 'treeRotate', display: v => (v / 100).toFixed(2) },
+                'cfg-scatter-rotate': { config: 'scatterRotate', display: v => (v / 100).toFixed(2) },
+                'cfg-bloom-strength': { config: 'bloomStrength', display: v => (v / 10).toFixed(1) },
+                'cfg-bloom-radius': { config: 'bloomRadius', display: v => (v / 10).toFixed(1) },
+                'cfg-star-glow': { config: 'starGlow', display: v => (v / 10).toFixed(1) },
+                'cfg-star-blink': { config: 'starBlink', display: v => (v / 10).toFixed(1) },
+                'cfg-snow-speed': { config: 'snowSpeed', display: v => (v / 100).toFixed(2) },
+                'cfg-snow-size': { config: 'snowSize', display: v => (v / 10).toFixed(1) },
+                'cfg-snow-count': { config: 'snowCount', display: v => v },
+                'cfg-ornament-count': { config: 'ornamentCount', display: v => v },
+                'cfg-whiteball-count': { config: 'whiteBallCount', display: v => v },
+                'cfg-box-count': { config: 'boxCount', display: v => v },
+                'cfg-photo-scale': { config: 'photoScale', display: v => (v / 10).toFixed(1) }
+            };
+
+            Object.keys(sliders).forEach(id => {
+                const slider = document.getElementById(id);
+                const valSpan = document.getElementById(id + '-val');
+                const cfg = sliders[id];
+
+                slider.addEventListener('input', () => {
+                    valSpan.textContent = cfg.display(slider.value);
+                });
+            });
+
+            // 应用设置
+            applyBtn.addEventListener('click', () => {
+                CONFIG.treeDistance = parseInt(document.getElementById('cfg-tree-distance').value);
+                CONFIG.scatterDistance = parseInt(document.getElementById('cfg-scatter-distance').value);
+                CONFIG.focusDistance = parseInt(document.getElementById('cfg-focus-distance').value);
+                CONFIG.treeRotate = parseInt(document.getElementById('cfg-tree-rotate').value) / 100;
+                CONFIG.scatterRotate = parseInt(document.getElementById('cfg-scatter-rotate').value) / 100;
+                CONFIG.bloomStrength = parseInt(document.getElementById('cfg-bloom-strength').value) / 10;
+                CONFIG.bloomRadius = parseInt(document.getElementById('cfg-bloom-radius').value) / 10;
+                CONFIG.starGlow = parseInt(document.getElementById('cfg-star-glow').value) / 10;
+                CONFIG.starBlink = parseInt(document.getElementById('cfg-star-blink').value) / 10;
+                CONFIG.snowSpeed = parseInt(document.getElementById('cfg-snow-speed').value) / 100;
+                CONFIG.snowSize = parseInt(document.getElementById('cfg-snow-size').value) / 10;
+                CONFIG.snowCount = parseInt(document.getElementById('cfg-snow-count').value);
+                CONFIG.ornamentCount = parseInt(document.getElementById('cfg-ornament-count').value);
+                CONFIG.whiteBallCount = parseInt(document.getElementById('cfg-whiteball-count').value);
+                CONFIG.boxCount = parseInt(document.getElementById('cfg-box-count').value);
+                CONFIG.photoScale = parseInt(document.getElementById('cfg-photo-scale').value) / 10;
+
+                // 获取颜色配置
+                CONFIG.ornamentColor = document.getElementById('cfg-ornament-color').value;
+                CONFIG.whiteBallColor = document.getElementById('cfg-whiteball-color').value;
+                CONFIG.boxColor = document.getElementById('cfg-box-color').value;
+                CONFIG.lightColor = document.getElementById('cfg-light-color').value;
+                CONFIG.starColor = document.getElementById('cfg-star-color').value;
+                CONFIG.snowColor = document.getElementById('cfg-snow-color').value;
+
+                // 应用所有颜色和效果设置
+                applyColorSettings();
+
+                modal.classList.remove('show');
+            });
+
+            // 恢复默认
+            resetBtn.addEventListener('click', () => {
+                CONFIG.treeDistance = 45;
+                CONFIG.scatterDistance = 55;
+                CONFIG.focusDistance = 8;
+                CONFIG.treeRotate = 0.3;
+                CONFIG.scatterRotate = 0.1;
+                CONFIG.bloomStrength = 0.9;
+                CONFIG.bloomRadius = 0.5;
+                CONFIG.starGlow = 3;
+                CONFIG.starBlink = 1;
+                CONFIG.snowSpeed = 0.03;
+                CONFIG.snowSize = 0.2;
+                CONFIG.snowCount = 1000;
+                CONFIG.ornamentCount = 400;
+                CONFIG.whiteBallCount = 150;
+                CONFIG.boxCount = 100;
+                CONFIG.photoScale = 2.5;
+                // 恢复到冰雪奇缘主题
+                applyTheme('frozen');
+                loadSettingsToUI();
+            });
+        }
+
+        // 应用颜色设置到场景
+        function applyColorSettings() {
+            // 应用雪花颜色
+            if (snowSystem && snowSystem.material) {
+                snowSystem.material.size = CONFIG.snowSize;
+                snowSystem.material.color.set(CONFIG.snowColor);
+                snowSystem.material.needsUpdate = true;
+            }
+            // 应用装饰球颜色
+            if (MATERIALS.gold) {
+                const ornamentHex = parseInt(CONFIG.ornamentColor.replace('#', ''), 16);
+                MATERIALS.gold.color.setHex(ornamentHex);
+                const emissiveColor = new THREE.Color(ornamentHex).multiplyScalar(0.3);
+                MATERIALS.gold.emissive.copy(emissiveColor);
+                MATERIALS.gold.emissiveIntensity = 0.5;
+                MATERIALS.gold.needsUpdate = true;
+            }
+            // 应用白色球颜色
+            if (MATERIALS.red) {
+                const whiteBallHex = parseInt(CONFIG.whiteBallColor.replace('#', ''), 16);
+                MATERIALS.red.color.setHex(whiteBallHex);
+                MATERIALS.red.needsUpdate = true;
+            }
+            // 应用方块颜色
+            if (MATERIALS.green) {
+                const boxHex = parseInt(CONFIG.boxColor.replace('#', ''), 16);
+                MATERIALS.green.color.setHex(boxHex);
+                const boxEmissive = new THREE.Color(boxHex).multiplyScalar(0.1);
+                MATERIALS.green.emissive.copy(boxEmissive);
+                MATERIALS.green.needsUpdate = true;
+            }
+            // 应用星星颜色
+            if (MATERIALS.star) {
+                const starHex = parseInt(CONFIG.starColor.replace('#', ''), 16);
+                MATERIALS.star.color.setHex(starHex);
+                MATERIALS.star.emissive.setHex(starHex);
+                MATERIALS.star.needsUpdate = true;
+            }
+            // 应用灯光颜色
+            if (innerLight) {
+                const lightHex = parseInt(CONFIG.lightColor.replace('#', ''), 16);
+                innerLight.color.setHex(lightHex);
+            }
+            // 应用泛光设置
+            if (bloomPass) {
+                bloomPass.radius = CONFIG.bloomRadius;
+            }
+        }
+
+        function loadSettingsToUI() {
+            document.getElementById('cfg-tree-distance').value = CONFIG.treeDistance;
+            document.getElementById('cfg-tree-distance-val').textContent = CONFIG.treeDistance;
+            document.getElementById('cfg-scatter-distance').value = CONFIG.scatterDistance;
+            document.getElementById('cfg-scatter-distance-val').textContent = CONFIG.scatterDistance;
+            document.getElementById('cfg-focus-distance').value = CONFIG.focusDistance;
+            document.getElementById('cfg-focus-distance-val').textContent = CONFIG.focusDistance;
+            document.getElementById('cfg-tree-rotate').value = CONFIG.treeRotate * 100;
+            document.getElementById('cfg-tree-rotate-val').textContent = CONFIG.treeRotate.toFixed(2);
+            document.getElementById('cfg-scatter-rotate').value = CONFIG.scatterRotate * 100;
+            document.getElementById('cfg-scatter-rotate-val').textContent = CONFIG.scatterRotate.toFixed(2);
+            document.getElementById('cfg-bloom-strength').value = CONFIG.bloomStrength * 10;
+            document.getElementById('cfg-bloom-strength-val').textContent = CONFIG.bloomStrength.toFixed(1);
+            document.getElementById('cfg-bloom-radius').value = CONFIG.bloomRadius * 10;
+            document.getElementById('cfg-bloom-radius-val').textContent = CONFIG.bloomRadius.toFixed(1);
+            document.getElementById('cfg-star-glow').value = CONFIG.starGlow * 10;
+            document.getElementById('cfg-star-glow-val').textContent = CONFIG.starGlow.toFixed(1);
+            document.getElementById('cfg-star-blink').value = CONFIG.starBlink * 10;
+            document.getElementById('cfg-star-blink-val').textContent = CONFIG.starBlink.toFixed(1);
+            document.getElementById('cfg-snow-speed').value = CONFIG.snowSpeed * 100;
+            document.getElementById('cfg-snow-speed-val').textContent = CONFIG.snowSpeed.toFixed(2);
+            document.getElementById('cfg-snow-size').value = CONFIG.snowSize * 10;
+            document.getElementById('cfg-snow-size-val').textContent = CONFIG.snowSize.toFixed(1);
+            document.getElementById('cfg-photo-scale').value = CONFIG.photoScale * 10;
+            document.getElementById('cfg-photo-scale-val').textContent = CONFIG.photoScale.toFixed(1);
+            document.getElementById('cfg-snow-count').value = CONFIG.snowCount;
+            document.getElementById('cfg-snow-count-val').textContent = CONFIG.snowCount;
+            document.getElementById('cfg-ornament-count').value = CONFIG.ornamentCount;
+            document.getElementById('cfg-ornament-count-val').textContent = CONFIG.ornamentCount;
+            document.getElementById('cfg-whiteball-count').value = CONFIG.whiteBallCount;
+            document.getElementById('cfg-whiteball-count-val').textContent = CONFIG.whiteBallCount;
+            document.getElementById('cfg-box-count').value = CONFIG.boxCount;
+            document.getElementById('cfg-box-count-val').textContent = CONFIG.boxCount;
+            // 加载颜色配置
+            document.getElementById('cfg-ornament-color').value = CONFIG.ornamentColor;
+            document.getElementById('cfg-whiteball-color').value = CONFIG.whiteBallColor;
+            document.getElementById('cfg-box-color').value = CONFIG.boxColor;
+            document.getElementById('cfg-light-color').value = CONFIG.lightColor;
+            document.getElementById('cfg-star-color').value = CONFIG.starColor;
+            document.getElementById('cfg-snow-color').value = CONFIG.snowColor;
+        }
+
+        // ========== 移动端触摸控制 ==========
+        function setupMobileControls() {
+            const mobileTree = document.getElementById('mobile-tree');
+            const mobileScatter = document.getElementById('mobile-scatter');
+            const mobilePhoto = document.getElementById('mobile-photo');
+            const mobileNext = document.getElementById('mobile-next');
+
+            // 更新按钮激活状态
+            function updateMobileButtonState() {
+                mobileTree.classList.toggle('active', STATE.mode === 'TREE');
+                mobileScatter.classList.toggle('active', STATE.mode === 'SCATTER');
+                mobilePhoto.classList.toggle('active', STATE.mode === 'FOCUS');
+            }
+
+            // 圣诞树模式
+            mobileTree.addEventListener('click', () => {
+                STATE.mode = 'TREE';
+                STATE.focusTarget = null;
+                updateMobileButtonState();
+            });
+
+            // 星河散开模式
+            mobileScatter.addEventListener('click', () => {
+                STATE.mode = 'SCATTER';
+                STATE.focusTarget = null;
+                updateMobileButtonState();
+            });
+
+            // 锁定照片模式
+            mobilePhoto.addEventListener('click', () => {
+                STATE.mode = 'FOCUS';
+                // 重置所有偏移量，让照片居中
+                STATE.pinch.offsetX = 0;
+                STATE.pinch.offsetY = 0;
+                STATE.pinch.zoom = 1;
+                STATE.handPinch.offsetX = 0;
+                STATE.handPinch.offsetY = 0;
+                // 重置相机FOV
+                if (camera) {
+                    camera.fov = 42;
+                    camera.updateProjectionMatrix();
+                }
+                if (!STATE.focusTarget) {
+                    const photos = particleSystem.filter(p => p.type === 'PHOTO');
+                    if (photos.length) {
+                        STATE.focusTarget = photos[Math.floor(Math.random() * photos.length)].mesh;
+                    }
+                }
+                updateMobileButtonState();
+            });
+
+            // 下一张照片
+            mobileNext.addEventListener('click', () => {
+                const photos = particleSystem.filter(p => p.type === 'PHOTO');
+                if (photos.length > 0) {
+                    // 如果不在FOCUS模式，先切换到FOCUS模式
+                    if (STATE.mode !== 'FOCUS') {
+                        STATE.mode = 'FOCUS';
+                        // 重置所有偏移量
+                        STATE.pinch.offsetX = 0;
+                        STATE.pinch.offsetY = 0;
+                        STATE.pinch.zoom = 1;
+                        STATE.handPinch.offsetX = 0;
+                        STATE.handPinch.offsetY = 0;
+                        if (camera) {
+                            camera.fov = 42;
+                            camera.updateProjectionMatrix();
+                        }
+                    }
+                    if (photos.length > 1 && STATE.focusTarget) {
+                        const currentIndex = photos.findIndex(p => p.mesh === STATE.focusTarget);
+                        const nextIndex = (currentIndex + 1) % photos.length;
+                        STATE.focusTarget = photos[nextIndex].mesh;
+                    } else if (!STATE.focusTarget) {
+                        STATE.focusTarget = photos[0].mesh;
+                    }
+                    updateMobileButtonState();
+                }
+            });
+
+            // 触摸滑动控制
+            let touchStartX = 0;
+            let touchStartY = 0;
+            const canvas = document.getElementById('canvas-container');
+            const FOCUS_PAN_SENSITIVITY = 0.015; // FOCUS模式下平移灵敏度
+
+            canvas.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    touchStartX = e.touches[0].clientX;
+                    touchStartY = e.touches[0].clientY;
+                }
+            }, { passive: true });
+
+            canvas.addEventListener('touchmove', (e) => {
+                // 单指滑动
+                if (e.touches.length === 1) {
+                    const deltaX = e.touches[0].clientX - touchStartX;
+                    const deltaY = e.touches[0].clientY - touchStartY;
+
+                    if (STATE.mode === 'FOCUS') {
+                        // FOCUS模式下：单指拖动移动照片
+                        STATE.handPinch.offsetX -= deltaX * FOCUS_PAN_SENSITIVITY;
+                        STATE.handPinch.offsetY += deltaY * FOCUS_PAN_SENSITIVITY;
+
+                        // 限制平移范围
+                        const maxOffset = 5;
+                        STATE.handPinch.offsetX = Math.max(-maxOffset, Math.min(maxOffset, STATE.handPinch.offsetX));
+                        STATE.handPinch.offsetY = Math.max(-maxOffset, Math.min(maxOffset, STATE.handPinch.offsetY));
+                    } else {
+                        // 其他模式：单指滑动旋转
+                        STATE.rotation.y += deltaX * 0.005;
+                        STATE.rotation.x += deltaY * 0.002;
+                        STATE.rotation.x = Math.max(-0.5, Math.min(0.5, STATE.rotation.x));
+                    }
+
+                    touchStartX = e.touches[0].clientX;
+                    touchStartY = e.touches[0].clientY;
+                }
+            }, { passive: true });
+
+            // 双指缩放功能
+            let initialPinchDistance = 0;
+            let isPinching = false;
+            const MIN_ZOOM = 0.5;
+            const MAX_ZOOM = 3;
+
+            canvas.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 2) {
+                    isPinching = true;
+                    initialPinchDistance = Math.hypot(
+                        e.touches[0].clientX - e.touches[1].clientX,
+                        e.touches[0].clientY - e.touches[1].clientY
+                    );
+                }
+            }, { passive: true });
+
+            canvas.addEventListener('touchmove', (e) => {
+                if (e.touches.length === 2 && isPinching) {
+                    // 计算当前双指距离
+                    const currentDistance = Math.hypot(
+                        e.touches[0].clientX - e.touches[1].clientX,
+                        e.touches[0].clientY - e.touches[1].clientY
+                    );
+
+                    // 计算缩放比例
+                    if (initialPinchDistance > 0) {
+                        const scale = currentDistance / initialPinchDistance;
+                        STATE.pinch.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, STATE.pinch.zoom * (1 + (scale - 1) * 0.05)));
+                        initialPinchDistance = currentDistance;
+                    }
+
+                    // 应用缩放到相机FOV
+                    const baseFov = 42;
+                    camera.fov = baseFov / STATE.pinch.zoom;
+                    camera.updateProjectionMatrix();
+                }
+            }, { passive: true });
+
+            canvas.addEventListener('touchend', (e) => {
+                if (e.touches.length < 2) {
+                    isPinching = false;
+                }
+            }, { passive: true });
+
+            // 初始化按钮状态
+            updateMobileButtonState();
+        }
+
+        // ========== PC端鼠标控制 ==========
+        function setupMouseControls() {
+            const canvas = document.getElementById('canvas-container');
+            let isRightMouseDown = false;
+            let isLeftMouseDown = false;
+            let mouseStartX = 0;
+            let mouseStartY = 0;
+            const MIN_ZOOM = 0.5;
+            const MAX_ZOOM = 3;
+            const PAN_SENSITIVITY = 0.01;
+
+            // 禁用右键菜单
+            canvas.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+            });
+
+            // 鼠标按下
+            canvas.addEventListener('mousedown', (e) => {
+                mouseStartX = e.clientX;
+                mouseStartY = e.clientY;
+                if (e.button === 0) { // 左键
+                    isLeftMouseDown = true;
+                    canvas.style.cursor = 'grab';
+                } else if (e.button === 2) { // 右键
+                    isRightMouseDown = true;
+                    canvas.style.cursor = 'move';
+                }
+            });
+
+            // 鼠标移动 - 左键旋转/平移，右键平移
+            canvas.addEventListener('mousemove', (e) => {
+                const deltaX = e.clientX - mouseStartX;
+                const deltaY = e.clientY - mouseStartY;
+
+                if (isLeftMouseDown) {
+                    if (STATE.mode === 'FOCUS') {
+                        // FOCUS模式下左键拖动平移照片
+                        STATE.handPinch.offsetX -= deltaX * PAN_SENSITIVITY;
+                        STATE.handPinch.offsetY += deltaY * PAN_SENSITIVITY;
+
+                        const maxOffset = 5;
+                        STATE.handPinch.offsetX = Math.max(-maxOffset, Math.min(maxOffset, STATE.handPinch.offsetX));
+                        STATE.handPinch.offsetY = Math.max(-maxOffset, Math.min(maxOffset, STATE.handPinch.offsetY));
+                    } else {
+                        // 其他模式左键拖动旋转
+                        STATE.rotation.y += deltaX * 0.005;
+                        STATE.rotation.x += deltaY * 0.002;
+                        STATE.rotation.x = Math.max(-0.5, Math.min(0.5, STATE.rotation.x));
+                    }
+                    mouseStartX = e.clientX;
+                    mouseStartY = e.clientY;
+                } else if (isRightMouseDown) {
+                    // 右键拖动平移（非FOCUS模式）
+                    STATE.pinch.offsetX += deltaX * PAN_SENSITIVITY / STATE.pinch.zoom;
+                    STATE.pinch.offsetY -= deltaY * PAN_SENSITIVITY / STATE.pinch.zoom;
+
+                    // 限制平移范围
+                    const maxOffset = 10 / STATE.pinch.zoom;
+                    STATE.pinch.offsetX = Math.max(-maxOffset, Math.min(maxOffset, STATE.pinch.offsetX));
+                    STATE.pinch.offsetY = Math.max(-maxOffset, Math.min(maxOffset, STATE.pinch.offsetY));
+
+                    mouseStartX = e.clientX;
+                    mouseStartY = e.clientY;
+                }
+            });
+
+            // 鼠标释放
+            canvas.addEventListener('mouseup', (e) => {
+                if (e.button === 0) {
+                    isLeftMouseDown = false;
+                    canvas.style.cursor = 'default';
+                } else if (e.button === 2) {
+                    isRightMouseDown = false;
+                    canvas.style.cursor = 'default';
+                }
+            });
+
+            // 鼠标离开画布
+            canvas.addEventListener('mouseleave', () => {
+                isRightMouseDown = false;
+                isLeftMouseDown = false;
+                canvas.style.cursor = 'default';
+            });
+
+            // 滚轮缩放
+            canvas.addEventListener('wheel', (e) => {
+                e.preventDefault();
+
+                // 根据滚轮方向调整缩放
+                const zoomDelta = e.deltaY > 0 ? -0.1 : 0.1;
+                STATE.pinch.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, STATE.pinch.zoom + zoomDelta));
+
+                // 应用缩放到相机FOV
+                const baseFov = 42;
+                camera.fov = baseFov / STATE.pinch.zoom;
+                camera.updateProjectionMatrix();
+            }, { passive: false });
+
+        }
+
+        // ========== 双击隐藏UI ==========
+        function setupDoubleClickHideUI() {
+            const canvas = document.getElementById('canvas-container');
+
+            // PC端双击隐藏UI
+            canvas.addEventListener('dblclick', (e) => {
+                // 检查点击的是否是canvas区域（不是按钮等UI元素）
+                if (e.target === canvas || e.target.tagName === 'CANVAS') {
+                    toggleAllUI();
+                }
+            });
+
+            // 移动端双击隐藏UI
+            let lastTouchTime = 0;
+            let touchCount = 0;
+            const DOUBLE_TAP_DELAY = 300; // 双击间隔时间
+
+            canvas.addEventListener('touchend', (e) => {
+                // 只处理单指触摸
+                if (e.changedTouches.length !== 1) return;
+
+                const currentTime = new Date().getTime();
+                const tapLength = currentTime - lastTouchTime;
+
+                if (tapLength < DOUBLE_TAP_DELAY && tapLength > 0) {
+                    // 双击检测成功
+                    touchCount++;
+                    if (touchCount >= 1) {
+                        toggleAllUI();
+                        touchCount = 0;
+                        e.preventDefault();
+                    }
+                } else {
+                    touchCount = 0;
+                }
+
+                lastTouchTime = currentTime;
+            }, { passive: false });
+        }
+
+        // 音乐管理功能
+        const MUSIC_PLAYLIST = [
+            { name: 'EXO - 첫 눈 The First Snow', src: 'EXO - 첫 눈 The First Snow.mp3' },
+            { name: 'Christmas Background', src: 'christmas-christmas-background-music-449476.mp3' },
+            { name: 'We Wish You A Merry Christmas', src: 'we-wish-you-a-merry-christmas-444573.mp3' }
+        ];
+
+        let currentTrackIndex = 0;
+        let currentMusicName = MUSIC_PLAYLIST[0].name;
+        let musicEnabled = true;
+        let musicAutoplay = true;
+        let targetVolume = 0.5;
+        let isFading = false;
+        const FADE_DURATION = 1500; // 淡入淡出时长(ms)
+
+        function setupMusicManagement() {
+            const modal = document.getElementById('music-modal');
+            const bgMusic = document.getElementById('bg-music');
+            const mainMusicBtn = document.getElementById('music-btn');
+            const visualizer = document.getElementById('music-visualizer');
+
+            // 初始化第一首歌
+            bgMusic.src = MUSIC_PLAYLIST[0].src;
+            bgMusic.volume = 0;
+
+            // 模态框关闭按钮
+            document.getElementById('music-modal-close').addEventListener('click', () => modal.classList.remove('show'));
+            document.getElementById('music-close-btn').addEventListener('click', () => modal.classList.remove('show'));
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) modal.classList.remove('show');
+            });
+
+            // Tab切换
+            const tabs = document.querySelectorAll('.music-tab');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    const tabId = tab.dataset.tab;
+                    document.getElementById('tab-url').style.display = tabId === 'url' ? 'block' : 'none';
+                    document.getElementById('tab-upload').style.display = tabId === 'upload' ? 'block' : 'none';
+                });
+            });
+
+            // 应用URL按钮
+            document.getElementById('apply-url-btn').addEventListener('click', () => {
+                const urlInput = document.getElementById('music-url-input');
+                const url = urlInput.value.trim();
+                if (!url) { alert('请输入音乐链接！'); return; }
+                try { new URL(url); } catch { alert('请输入有效的URL链接！'); return; }
+                applyMusicSource(url, getFileNameFromUrl(url));
+            });
+
+            // 音频文件上传区域
+            const uploadArea = document.getElementById('music-upload-area');
+            const fileInput = document.getElementById('music-file-input');
+            uploadArea.addEventListener('click', () => fileInput.click());
+            uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+            uploadArea.addEventListener('dragleave', () => { uploadArea.classList.remove('dragover'); });
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                const file = e.dataTransfer.files[0];
+                if (file && file.type.startsWith('audio/')) handleAudioFile(file);
+                else alert('请上传音频文件！');
+            });
+            fileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) handleAudioFile(file);
+                e.target.value = '';
+            });
+
+            function handleAudioFile(file) {
+                const reader = new FileReader();
+                reader.onload = (e) => applyMusicSource(e.target.result, file.name);
+                reader.readAsDataURL(file);
+            }
+
+            function applyMusicSource(src, name) {
+                fadeOut(() => {
+                    bgMusic.src = src;
+                    currentMusicName = name || '自定义音乐';
+                    updateMusicInfo();
+                    if (musicEnabled) fadeIn();
+                });
+                alert(`已应用音乐: ${name}`);
+            }
+
+            // 淡入效果
+            function fadeIn(callback) {
+                if (isFading) return;
+                isFading = true;
+                bgMusic.volume = 0;
+                bgMusic.play().catch(err => { console.log('播放失败:', err); isFading = false; return; });
+
+                const startTime = Date.now();
+                const fade = () => {
+                    const elapsed = Date.now() - startTime;
+                    const progress = Math.min(elapsed / FADE_DURATION, 1);
+                    bgMusic.volume = progress * targetVolume;
+                    if (progress < 1) requestAnimationFrame(fade);
+                    else { isFading = false; if (callback) callback(); }
+                };
+                fade();
+            }
+
+            // 淡出效果
+            function fadeOut(callback) {
+                if (bgMusic.paused || bgMusic.volume === 0) { if (callback) callback(); return; }
+                isFading = true;
+                const startVolume = bgMusic.volume;
+                const startTime = Date.now();
+                const fade = () => {
+                    const elapsed = Date.now() - startTime;
+                    const progress = Math.min(elapsed / FADE_DURATION, 1);
+                    bgMusic.volume = startVolume * (1 - progress);
+                    if (progress < 1) requestAnimationFrame(fade);
+                    else { bgMusic.pause(); isFading = false; if (callback) callback(); }
+                };
+                fade();
+            }
+
+            // 播放下一首
+            function playNext() {
+                currentTrackIndex = (currentTrackIndex + 1) % MUSIC_PLAYLIST.length;
+                const track = MUSIC_PLAYLIST[currentTrackIndex];
+                fadeOut(() => {
+                    bgMusic.src = track.src;
+                    currentMusicName = track.name;
+                    updateMusicInfo();
+                    if (musicEnabled) fadeIn();
+                });
+            }
+
+            // 歌曲结束时自动播放下一首
+            bgMusic.addEventListener('ended', () => {
+                if (musicEnabled) playNext();
+            });
+
+            // 播放/暂停控制
+            const playBtn = document.getElementById('music-play-btn');
+            const pauseBtn = document.getElementById('music-pause-btn');
+
+            playBtn.addEventListener('click', () => {
+                if (!musicEnabled) return;
+                fadeIn();
+            });
+
+            pauseBtn.addEventListener('click', () => {
+                fadeOut();
+            });
+
+            // 下一首按钮
+            document.getElementById('music-next-btn').addEventListener('click', () => {
+                playNext();
+            });
+
+            // 监听音频状态变化
+            bgMusic.addEventListener('play', () => updatePlayState(true));
+            bgMusic.addEventListener('pause', () => updatePlayState(false));
+
+            function updatePlayState(playing) {
+                const widgetPlayBtn = document.getElementById('widget-play-btn');
+                if (playing) {
+                    playBtn.classList.add('playing');
+                    mainMusicBtn.classList.add('active');
+                    visualizer.classList.remove('paused');
+                    if (widgetPlayBtn) widgetPlayBtn.textContent = '⏸';
+                } else {
+                    playBtn.classList.remove('playing');
+                    mainMusicBtn.classList.remove('active');
+                    visualizer.classList.add('paused');
+                    if (widgetPlayBtn) widgetPlayBtn.textContent = '▶';
+                }
+            }
+
+            // 音乐小部件控制
+            const musicWidget = document.getElementById('music-widget');
+            const widgetPlayBtn = document.getElementById('widget-play-btn');
+            const widgetNextBtn = document.getElementById('widget-next-btn');
+            const widgetSettingsBtn = document.getElementById('widget-settings-btn');
+            const widgetMusicName = document.getElementById('music-widget-name');
+
+            // 检测是否移动端
+            const isMobileDevice = () => window.innerWidth <= 768;
+
+            // 点击动效区域 - 移动端展开/收起，PC端播放/暂停
+            document.querySelector('.music-widget-main').addEventListener('click', () => {
+                if (!musicEnabled) return;
+                if (isMobileDevice()) {
+                    // 移动端：切换展开状态
+                    musicWidget.classList.toggle('expanded');
+                } else {
+                    // PC端：播放/暂停
+                    if (bgMusic.paused) fadeIn();
+                    else fadeOut();
+                }
+            });
+
+            // 点击其他地方收起移动端展开的面板
+            document.addEventListener('click', (e) => {
+                if (isMobileDevice() && !musicWidget.contains(e.target)) {
+                    musicWidget.classList.remove('expanded');
+                }
+            });
+
+            // 播放/暂停按钮
+            widgetPlayBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (!musicEnabled) return;
+                if (bgMusic.paused) fadeIn();
+                else fadeOut();
+            });
+
+            // 下一首按钮
+            widgetNextBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                playNext();
+            });
+
+            // 设置按钮
+            widgetSettingsBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                modal.classList.add('show');
+            });
+
+            // 音量控制
+            const volumeSlider = document.getElementById('music-volume');
+            const volumeValue = document.getElementById('volume-value');
+
+            volumeSlider.addEventListener('input', () => {
+                targetVolume = volumeSlider.value / 100;
+                if (!bgMusic.paused && !isFading) bgMusic.volume = targetVolume;
+                volumeValue.textContent = volumeSlider.value + '%';
+                localStorage.setItem('musicVolume', volumeSlider.value);
+            });
+
+            // 恢复默认
+            document.getElementById('music-reset-btn').addEventListener('click', () => {
+                if (confirm('确定要恢复默认播放列表吗？')) {
+                    currentTrackIndex = 0;
+                    const track = MUSIC_PLAYLIST[0];
+                    fadeOut(() => {
+                        bgMusic.src = track.src;
+                        currentMusicName = track.name;
+                        updateMusicInfo();
+                        document.getElementById('music-url-input').value = '';
+                        localStorage.removeItem('musicSrc');
+                        localStorage.removeItem('musicName');
+                        if (musicEnabled) fadeIn();
+                    });
+                    alert('已恢复默认播放列表');
+                }
+            });
+
+            function updateMusicInfo() {
+                document.getElementById('current-music-name').textContent = currentMusicName;
+                widgetMusicName.textContent = currentMusicName;
+            }
+
+            function getFileNameFromUrl(url) {
+                try {
+                    const pathname = new URL(url).pathname;
+                    const filename = pathname.split('/').pop();
+                    return decodeURIComponent(filename) || '在线音乐';
+                } catch { return '在线音乐'; }
+            }
+
+            // 设置面板中的音乐开关
+            const musicEnabledCheckbox = document.getElementById('cfg-music-enabled');
+            const musicAutoplayCheckbox = document.getElementById('cfg-music-autoplay');
+
+            if (musicEnabledCheckbox) {
+                musicEnabledCheckbox.addEventListener('change', () => {
+                    musicEnabled = musicEnabledCheckbox.checked;
+                    localStorage.setItem('musicEnabled', musicEnabled);
+                    if (!musicEnabled) {
+                        fadeOut();
+                        musicWidget.style.display = 'none';
+                    } else {
+                        musicWidget.style.display = 'flex';
+                        if (musicAutoplay) fadeIn();
+                    }
+                });
+            }
+
+            if (musicAutoplayCheckbox) {
+                musicAutoplayCheckbox.addEventListener('change', () => {
+                    musicAutoplay = musicAutoplayCheckbox.checked;
+                    localStorage.setItem('musicAutoplay', musicAutoplay);
+                });
+            }
+
+            // 恢复设置
+            function restoreMusicSettings() {
+                const savedVolume = localStorage.getItem('musicVolume');
+                const savedEnabled = localStorage.getItem('musicEnabled');
+                const savedAutoplay = localStorage.getItem('musicAutoplay');
+
+                if (savedVolume) {
+                    volumeSlider.value = savedVolume;
+                    targetVolume = savedVolume / 100;
+                    volumeValue.textContent = savedVolume + '%';
+                } else {
+                    targetVolume = 0.5;
+                }
+
+                if (savedEnabled !== null) {
+                    musicEnabled = savedEnabled === 'true';
+                    if (musicEnabledCheckbox) musicEnabledCheckbox.checked = musicEnabled;
+                }
+
+                if (savedAutoplay !== null) {
+                    musicAutoplay = savedAutoplay === 'true';
+                    if (musicAutoplayCheckbox) musicAutoplayCheckbox.checked = musicAutoplay;
+                }
+
+                if (!musicEnabled) {
+                    musicWidget.style.display = 'none';
+                }
+
+                updateMusicInfo();
+            }
+
+            restoreMusicSettings();
+
+            // 用户交互后自动播放
+            const startMusic = () => {
+                if (musicEnabled && musicAutoplay && bgMusic.paused) {
+                    fadeIn();
+                }
+                document.removeEventListener('click', startMusic);
+                document.removeEventListener('touchstart', startMusic);
+            };
+            document.addEventListener('click', startMusic);
+            document.addEventListener('touchstart', startMusic);
+        }
+
+        // 从缓存恢复照片到场景
+        async function restorePhotosFromCache() {
+            const photos = await PhotoCache.getAllPhotos();
+
+            for (const photo of photos) {
+                if (photo.inScene) {
+                    await new Promise((resolve) => {
+                        new THREE.TextureLoader().load(photo.base64, (texture) => {
+                            texture.colorSpace = THREE.SRGBColorSpace;
+                            addPhotoToScene(texture, photo.base64, photo.id);
+                            resolve();
+                        });
+                    });
+                }
+            }
+
+            if (photos.length > 0) {
+                console.log(`已从缓存恢复 ${photos.filter(p => p.inScene).length} 张照片`);
+            }
+        }
+
+        // 加载预置照片（源代码中嵌入的照片）
+        async function loadPresetPhotos() {
+            if (!PRESET_PHOTOS || PRESET_PHOTOS.length === 0) {
+                return;
+            }
+
+            console.log(`正在加载 ${PRESET_PHOTOS.length} 张预置照片...`);
+            let loadedCount = 0;
+
+            for (const base64 of PRESET_PHOTOS) {
+                if (!base64 || !base64.startsWith('data:image')) {
+                    continue;
+                }
+
+                // 检查是否已存在于缓存中（通过比较base64的前100个字符来判断）
+                const photos = await PhotoCache.getAllPhotos();
+                const exists = photos.some(p => p.base64.substring(0, 100) === base64.substring(0, 100));
+
+                if (!exists) {
+                    // 保存到缓存
+                    const result = await PhotoCache.savePhoto(base64);
+                    if (result.success) {
+                        await new Promise((resolve) => {
+                            new THREE.TextureLoader().load(base64, (texture) => {
+                                texture.colorSpace = THREE.SRGBColorSpace;
+                                addPhotoToScene(texture, base64, result.photo.id);
+                                loadedCount++;
+                                resolve();
+                            });
+                        });
+                    }
+                }
+            }
+
+            if (loadedCount > 0) {
+                console.log(`已加载 ${loadedCount} 张预置照片`);
+            }
+        }
+
+        // 初始化 MediaPipe 手势识别
+        async function initMediaPipe() {
+            try {
+                const vision = await FilesetResolver.forVisionTasks(
+                    "https://testingcf.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
+                );
+
+                handLandmarker = await HandLandmarker.createFromOptions(vision, {
+                    baseOptions: {
+                        modelAssetPath: `https://testingcf.jsdelivr.net/gh/CJcrazycool/mediapipe-mirror@main/hand_landmarker.task`,
+                        delegate: "GPU"
+                    },
+                    runningMode: "VIDEO",
+                    numHands: 1
+                });
+
+                if (navigator.mediaDevices?.getUserMedia) {
+                    video = document.getElementById('webcam');
+                    video.srcObject = await navigator.mediaDevices.getUserMedia({ video: true });
+                    webcamCanvas = document.getElementById('webcam-preview');
+                    webcamCtx = webcamCanvas.getContext('2d');
+                    video.addEventListener("loadeddata", predictWebcam);
+                }
+            } catch (error) {
+                console.warn('摄像头或手势识别初始化失败，将禁用手势功能:', error.message);
+                // 隐藏摄像头预览区域
+                const webcamWrapper = document.getElementById('webcam-wrapper');
+                if (webcamWrapper) webcamWrapper.style.display = 'none';
+            }
+        }
+
+        // 手势识别循环
+        let lastTime = -1;
+        async function predictWebcam() {
+            if (video.currentTime !== lastTime && handLandmarker) {
+                lastTime = video.currentTime;
+                webcamCanvas.width = video.videoWidth;
+                webcamCanvas.height = video.videoHeight;
+
+                webcamCtx.save();
+                webcamCtx.clearRect(0, 0, webcamCanvas.width, webcamCanvas.height);
+                webcamCtx.drawImage(video, 0, 0);
+
+                const result = handLandmarker.detectForVideo(video, performance.now());
+
+                if (result.landmarks.length) {
+                    STATE.hand.detected = true;
+                    STATE.hand.x = (result.landmarks[0][9].x - 0.5) * 2;
+                    STATE.hand.y = (result.landmarks[0][9].y - 0.5) * 2;
+
+                    const wrist = result.landmarks[0][0];
+                    const index = result.landmarks[0][8];
+                    const thumb = result.landmarks[0][4];
+
+                    const indexDist = Math.hypot(index.x - wrist.x, index.y - wrist.y);
+                    const thumbDist = Math.hypot(thumb.x - index.x, thumb.y - index.y);
+
+                    const isFist = indexDist < 0.3 && thumbDist > 0.08;
+                    const isOpen = indexDist > 0.4;
+                    const isPinch = thumbDist < 0.08;
+
+                    // 手势逻辑
+                    if (isPinch && (STATE.mode === 'SCATTER' || STATE.mode === 'FOCUS')) {
+                        STATE.mode = 'FOCUS';
+                        STATE.handPinch.active = true;
+
+                        // 在FOCUS模式下，捏合手势的位置控制镜头平移
+                        // 使用捏合点（拇指和食指中点）的位置
+                        const pinchX = (thumb.x + index.x) / 2;
+                        const pinchY = (thumb.y + index.y) / 2;
+
+                        // 将手的位置映射到镜头偏移（范围约 -2 到 2）
+                        // 手在画面中心时偏移为0，向边缘移动时偏移增加
+                        const targetOffsetX = (pinchX - 0.5) * -4; // 反向，手向右镜头向左
+                        const targetOffsetY = (pinchY - 0.5) * -3; // 反向，手向下镜头向上
+
+                        // 平滑过渡到目标偏移
+                        STATE.handPinch.offsetX += (targetOffsetX - STATE.handPinch.offsetX) * 0.1;
+                        STATE.handPinch.offsetY += (targetOffsetY - STATE.handPinch.offsetY) * 0.1;
+
+                        if (!STATE.focusTarget) {
+                            const photos = particleSystem.filter(p => p.type === 'PHOTO');
+                            if (photos.length) {
+                                STATE.focusTarget = photos[Math.floor(Math.random() * photos.length)].mesh;
+                            }
+                        }
+                    } else if (isFist) {
+                        STATE.mode = 'TREE';
+                        STATE.focusTarget = null;
+                        STATE.handPinch.active = false;
+                        // 重置手势平移偏移
+                        STATE.handPinch.offsetX = 0;
+                        STATE.handPinch.offsetY = 0;
+                    } else if (isOpen) {
+                        STATE.mode = 'SCATTER';
+                        STATE.focusTarget = null;
+                        STATE.handPinch.active = false;
+                        // 重置手势平移偏移
+                        STATE.handPinch.offsetX = 0;
+                        STATE.handPinch.offsetY = 0;
+                    }
+
+                    // 绘制手部骨架
+                    const landmarks = result.landmarks[0];
+                    const connections = [
+                        [0, 1], [1, 2], [2, 3], [3, 4],
+                        [0, 5], [5, 6], [6, 7], [7, 8],
+                        [0, 9], [9, 10], [10, 11], [11, 12],
+                        [0, 13], [13, 14], [14, 15], [15, 16],
+                        [0, 17], [17, 18], [18, 19], [19, 20],
+                        [5, 9], [9, 13], [13, 17]
+                    ];
+
+                    // 获取当前主题的强调色
+                    const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--accent-color').trim() || '#00ffcc';
+                    const accentRgb = getComputedStyle(document.documentElement).getPropertyValue('--accent-color-rgb').trim() || '0, 255, 204';
+
+                    webcamCtx.shadowBlur = 8;
+                    webcamCtx.shadowColor = accentColor;
+                    webcamCtx.lineWidth = 3;
+                    webcamCtx.strokeStyle = `rgba(${accentRgb}, 0.9)`;
+
+                    for (let [s, e] of connections) {
+                        webcamCtx.beginPath();
+                        webcamCtx.moveTo(
+                            landmarks[s].x * webcamCanvas.width,
+                            landmarks[s].y * webcamCanvas.height
+                        );
+                        webcamCtx.lineTo(
+                            landmarks[e].x * webcamCanvas.width,
+                            landmarks[e].y * webcamCanvas.height
+                        );
+                        webcamCtx.stroke();
+                    }
+
+                    // 绘制关键节点
+                    webcamCtx.fillStyle = `rgba(${accentRgb}, 0.8)`;
+                    for (let i of [0, 4, 8, 12, 16, 20]) {
+                        webcamCtx.beginPath();
+                        webcamCtx.arc(
+                            landmarks[i].x * webcamCanvas.width,
+                            landmarks[i].y * webcamCanvas.height,
+                            4,
+                            0,
+                            2 * Math.PI
+                        );
+                        webcamCtx.fill();
+                    }
+
+                    webcamCtx.shadowBlur = 0;
+                }
+
+                webcamCtx.restore();
+            }
+            requestAnimationFrame(predictWebcam);
+        }
+        // 动画循环
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = clock.getDelta();
+
+            // FOCUS模式 - 照片居中显示
+            if (STATE.mode === 'FOCUS' && STATE.focusTarget) {
+                bloomPass.strength = THREE.MathUtils.lerp(bloomPass.strength, 0.6, 5 * dt);
+
+                // 获取目标照片的世界坐标
+                const targetWorldPos = new THREE.Vector3();
+                STATE.focusTarget.getWorldPosition(targetWorldPos);
+
+                // 相机距离
+                const cameraDistance = CONFIG.focusDistance;
+
+                // 在FOCUS模式下，应用平移偏移（支持手势捏合和触摸拖动）
+                const handOffsetX = STATE.handPinch.offsetX;
+                const handOffsetY = STATE.handPinch.offsetY;
+
+                // 相机位置：从正前方看向照片，Z轴固定
+                STATE.camera.targetPos.set(
+                    targetWorldPos.x + handOffsetX,
+                    targetWorldPos.y + handOffsetY,
+                    targetWorldPos.z + cameraDistance
+                );
+                STATE.camera.targetLookAt.set(
+                    targetWorldPos.x + handOffsetX,
+                    targetWorldPos.y + handOffsetY,
+                    targetWorldPos.z
+                );
+            } else {
+                // 非FOCUS模式
+                bloomPass.strength = THREE.MathUtils.lerp(bloomPass.strength, CONFIG.bloomStrength, 2 * dt);
+
+                // 移动端和PC端使用不同的默认距离
+                const isMobile = window.innerWidth <= 768;
+                let camZ;
+                if (STATE.mode === 'SCATTER') {
+                    camZ = isMobile ? CONFIG.scatterDistance * 1.6 : CONFIG.scatterDistance;
+                } else {
+                    // 树模式：移动端默认30，PC端使用配置值
+                    camZ = isMobile ? 45 : CONFIG.treeDistance;
+                }
+
+                // 保留捏合平移的偏移量，相机看向树的中心位置
+                STATE.camera.targetPos.set(STATE.pinch.offsetX, 3 + STATE.pinch.offsetY, camZ);
+                STATE.camera.targetLookAt.set(STATE.pinch.offsetX, 1 + STATE.pinch.offsetY, 0);
+            }
+
+            // 相机平滑移动
+            camera.position.lerp(STATE.camera.targetPos, 1 * dt);
+            STATE.camera.currentLookAt.lerp(STATE.camera.targetLookAt, 1.5 * dt);
+            camera.lookAt(STATE.camera.currentLookAt);
+
+            // 旋转控制
+            if (STATE.mode !== 'FOCUS') {
+                if (STATE.mode === 'SCATTER' && STATE.hand.detected) {
+                    STATE.rotation.x += (STATE.hand.y * 0.8 - STATE.rotation.x) * 1 * dt;
+                    STATE.rotation.y += (STATE.hand.x * 2.5 - STATE.rotation.y) * 1 * dt;
+                } else {
+                    STATE.rotation.y += (STATE.mode === 'TREE' ? CONFIG.treeRotate : CONFIG.scatterRotate) * dt;
+                    STATE.rotation.x += (0 - STATE.rotation.x) * 2 * dt;
+                }
+                mainGroup.rotation.y = STATE.rotation.y;
+                mainGroup.rotation.x = STATE.rotation.x;
+            } else {
+                mainGroup.rotation.y += 0.05 * dt;
+            }
+
+            // 顶部星星动画
+            if (window.topStar) {
+                const time = clock.elapsedTime;
+                // 缓慢旋转
+                window.topStar.rotation.z += 0.3 * dt;
+                // 上下漂浮
+                window.topStar.position.y = 9 + Math.sin(time * 1.5) * 0.2;
+                // 星星整体发光闪烁 - 慢慢变化
+                const glowIntensity = CONFIG.starGlow + Math.sin(time * CONFIG.starBlink) * 1.0;
+                MATERIALS.star.emissiveIntensity = glowIntensity;
+                // 点光源同步闪烁
+                if (window.starLight) {
+                    window.starLight.position.y = window.topStar.position.y;
+                    window.starLight.intensity = 2 + Math.sin(time * 0.8) * 1.5;
+                }
+            }
+
+            // 雪花动画
+            if (snowSystem) {
+                const positions = snowSystem.geometry.attributes.position.array;
+                for (let i = 1; i < positions.length; i += 3) {
+                    positions[i] -= CONFIG.snowSpeed;
+                    if (positions[i] < -10) positions[i] = 40;
+                }
+                snowSystem.geometry.attributes.position.needsUpdate = true;
+            }
+
+            // 更新粒子
+            particleSystem.forEach(p => p.update(dt, STATE.mode));
+            composer.render();
+        }
+
+        function createTips() {
+            const isMobile = window.innerWidth <= 768 || 'ontouchstart' in window;
+            const tips = document.createElement('div');
+            tips.id = 'tips';
+
+            if (isMobile) {
+                // 移动端提示
+                tips.innerHTML = `
+                    <div style="text-align:center; margin-bottom:10px; color:#fff; font-weight:bold;">触摸控制</div>
+                    <div class="tip-item"><span class="tip-key">🎄</span> 圣诞树模式</div>
+                    <div class="tip-item"><span class="tip-key">✨</span> 星河散开</div>
+                    <div class="tip-item"><span class="tip-key">📷</span> 锁定照片</div>
+                    <div class="tip-item"><span class="tip-key">⏭️</span> 下一张</div>
+                    <div class="tip-item"><span class="tip-key">单指滑动</span> 旋转视角</div>
+                    <div class="tip-item"><span class="tip-key">双指捏合</span> 缩放大小</div>
+                    <div class="tip-item"><span class="tip-key">双击</span> 重置视角</div>
+                    <div style="text-align:center; margin-top:12px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.1); color:rgba(0,255,204,0.6); font-size:9px;">
+                        power by xiaohongshu-沫沫 & Gemini3pro
+                    </div>
+                `;
+            } else {
+                // 桌面端提示
+                tips.innerHTML = `
+                    <div style="text-align:center; margin-bottom:10px; color:#fff; font-weight:bold;">手势控制</div>
+                    <div class="tip-item"><span class="tip-key">✊ 握拳</span> 圣诞树</div>
+                    <div class="tip-item"><span class="tip-key">✋ 张手</span> 星河散开</div>
+                    <div class="tip-item"><span class="tip-key">👌 捏合</span> 锁定照片</div>
+                    <div class="keyboard-tips">
+                        <div style="text-align:center; margin-top:12px; margin-bottom:10px; color:#fff; font-weight:bold; border-top:1px solid rgba(255,255,255,0.1); padding-top:10px;">鼠标控制</div>
+                        <div class="tip-item"><span class="tip-key">左键拖动</span> 旋转视角</div>
+                        <div class="tip-item"><span class="tip-key">右键拖动</span> 平移视角</div>
+                        <div class="tip-item"><span class="tip-key">滚轮</span> 缩放大小</div>
+                        <div class="tip-item"><span class="tip-key">双击</span> 重置视角</div>
+                        <div style="text-align:center; margin-top:12px; margin-bottom:10px; color:#fff; font-weight:bold; border-top:1px solid rgba(255,255,255,0.1); padding-top:10px;">键盘控制</div>
+                        <div class="tip-item"><span class="tip-key">1 / T</span> 圣诞树</div>
+                        <div class="tip-item"><span class="tip-key">2 / S</span> 星河散开</div>
+                        <div class="tip-item"><span class="tip-key">3 / P</span> 锁定照片</div>
+                        <div class="tip-item"><span class="tip-key">N</span> 下一张照片</div>
+                        <div class="tip-item"><span class="tip-key">V</span> 显/隐摄像头</div>
+                        <div class="tip-item"><span class="tip-key">F</span> 全屏切换</div>
+                        <div class="tip-item"><span class="tip-key">H</span> 显/隐界面</div>
+                    </div>
+                    <div style="text-align:center; margin-top:12px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.1); color:rgba(0,255,204,0.6); font-size:9px;">
+                        power by xiaohongshu-沫沫 & Gemini3pro
+                    </div>
+                `;
+            }
+            document.body.appendChild(tips);
+        } async function init() { await PhotoCache.init(); initThree(); createMaterials(); setupLights(); createParticles(); createSnow(); await restorePhotosFromCache(); await loadPresetPhotos(); setupPostProcessing(); setupEvents(); createTips(); await initMediaPipe(); document['\u0067\u0065\u0074\u0045\u006C\u0065\u006D\u0065\u006E\u0074\u0042\u0079\u0049\u0064']("redaol".split("").reverse().join(""))['\u0073\u0074\u0079\u006C\u0065']['\u006F\u0070\u0061\u0063\u0069\u0074\u0079'] = 478283 ^ 478283; setTimeout(() => document['\u0067\u0065\u0074\u0045\u006C\u0065\u006D\u0065\u006E\u0074\u0042\u0079\u0049\u0064']("\u006C\u006F\u0061\u0064\u0065\u0072")['\u0072\u0065\u006D\u006F\u0076\u0065'](), 469601 ^ 469313); animate(); } init();
+    </script>
+
+    </body>
+
+</html>
